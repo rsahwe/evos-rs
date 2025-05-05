@@ -1,0 +1,18 @@
+[package]
+name = "evkrnl"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bitvec = { version = "1.0.1", default-features = false }
+bootloader_api = "0.11.10"
+chrono = { version = "0.4.41", default-features = false }
+linked_list_allocator = { version = "0.10.5", default-features = false }
+raw-cpuid = "11.5.0"
+spin = "0.10.0"
+uart_16550 = "0.3.2"
+x86_64 = "0.15.2"
+
+[build-dependencies]
+config = { version = "0.15.11", default-features = false, features = ["toml", "json", "yaml", "json5"] }
+serde = { version = "1.0.219", features = ["derive"] }
