@@ -210,7 +210,7 @@ fn handler_func(frame: InterruptStackFrame, index: u8, error_code: Option<u64>) 
             Ok(vector) => {
                 match vector {
                     ExceptionVector::Page => panic!("kernel page fault e {} with frame:\n{:#?}\nand addr: {:?}", error_code.unwrap(), frame, Cr2::read()),
-                    _ => unreachable!("Unexpected interrupt {:?} with frame:\n{:#?}", vector, frame),//Should be unreachable right?
+                    _ => unreachable!("Unexpected interrupt with error {:?} {:?} with frame:\n{:#?}", error_code, vector, frame),//Should be unreachable right?
                 }
             },
             Err(_) => {
@@ -226,7 +226,7 @@ fn handler_func(frame: InterruptStackFrame, index: u8, error_code: Option<u64>) 
             Ok(vector) => {
                 match vector {
                     // TODO: COLLECT FATAL
-                    _ => println!("EMERGENCY WARN: unhandled user exception {:?}", vector),
+                    _ => println!("EMERGENCY WARN: unhandled user exception {:?} at {:?}", vector, frame.instruction_pointer),
                 }
             },
             Err(_) => {
