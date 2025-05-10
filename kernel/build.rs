@@ -20,6 +20,7 @@ impl FrameBufferConfig {
     fn write_to_file(self, file: &mut BufWriter<std::fs::File>) -> Result<(), Box<dyn Error>> {
         writeln!(file, "{}", match self.font.as_str() {
             "basic8x8" => "pub type Font = crate::text::font::Basic8x8;",
+            "ter16x32" => "pub type Font = crate::text::font::Ter16x32;",
             font => Err(format!("config::framebuffer::font: Invalid font {}", font))?
         })?;
 
