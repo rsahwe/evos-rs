@@ -12,6 +12,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     info!("Initialization complete!");
 
     print_init_msg!();
+    evkrnl::syscall_test();
 
     panic!("Kernel main exited!")
 }

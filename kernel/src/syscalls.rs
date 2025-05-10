@@ -22,6 +22,9 @@ impl GSVars {
 
     /// SAFETY: STACK MUST BE A UNIQUE REFERENCE
     unsafe fn init(&mut self, kernel_stack: &[u8; STACK_SIZE]) {
+        println!("Syscall entry at 0x{:016x}", syscall_entry as usize);
+        println!("Stack base 0x{:016x}", kernel_stack as *const _ as usize);
+        println!("Setting stack 0x{:016x}", kernel_stack as *const _ as usize + STACK_SIZE);
         self.kernel_stack = kernel_stack as *const _ as usize + STACK_SIZE;
     }
 }
