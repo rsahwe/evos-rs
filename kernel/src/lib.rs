@@ -18,6 +18,7 @@ pub(crate) mod mem;
 mod panic;
 pub mod log;
 pub mod time;
+pub(crate) mod syscalls;
 
 pub use mem::CONFIG as BOOT_CONFIG;
 
@@ -30,4 +31,6 @@ pub fn init(boot_info: &'static mut BootInfo) {
     println!("INFO: IDT initialized");
     // SAFETY: MEMORY REGIONS ARE VALID AND LATER UNUSED
     unsafe { mem::init(&mut boot_info.memory_regions) };
+    syscalls::init();
+    println!("INFO: SYSCALLS initialized");
 }
