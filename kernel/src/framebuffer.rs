@@ -120,7 +120,7 @@ impl Write for FramePrinter {
             _ => {
                 let c = FramePrinterFont::get_char(c);
                 if self.line_pos == self.info.width / FramePrinterFont::width() {
-                    write!(self, "\n")?;
+                    write!(self, "\n\r")?;
                 }
                 for y in 0..FramePrinterFont::height() {
                     for x in 0..FramePrinterFont::width() {
