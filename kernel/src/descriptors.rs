@@ -1,6 +1,8 @@
 use spin::{Mutex, MutexGuard};
 use x86_64::{instructions::tables::load_tss, registers::segmentation::{Segment, CS, DS, SS}, structures::{gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector}, tss::TaskStateSegment}, PrivilegeLevel, VirtAddr};
 
+use crate::mem::STACK_SIZE;
+
 static GLOBAL: Mutex<GlobalDescriptorTable> = Mutex::new(GlobalDescriptorTable::new());
 static TASK: Mutex<TaskStateSegment> = Mutex::new(TaskStateSegment::new());
 
@@ -13,8 +15,6 @@ pub const TSS: SegmentSelector = SegmentSelector::new(5, PrivilegeLevel::Ring0);
 pub fn init() {
     // LOCK SAFETY: ONLY LOCKED HERE
     let mut tss = TASK.lock();
-
-    const STACK_SIZE: usize = 100 * 1024;
 
     tss.interrupt_stack_table[0] = {
         static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];

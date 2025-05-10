@@ -11,11 +11,13 @@ use crate::println;
 pub mod phys;
 pub mod virt;
 
-pub const MIN_PHYSICAL: usize = 1024 * 1024 * 1; // 1 MiB
+pub const MIN_PHYSICAL: usize = 1024 * 1024 * 10; // 10 MiB
 pub const OFFSET: u64 = 0xffff800000000000;
 pub const HEAP_VIRT_SIZE: usize = 1024 * 1024 * 1024 * 1; // 1 GiB
 pub const HEAP_VIRT_BASE: usize = 0usize.wrapping_sub(HEAP_VIRT_SIZE);
 pub const HEAP_BLOCK_SIZE: usize = 1024 * 1024 * 1; // 1 MiB
+
+pub const STACK_SIZE: usize = 100 * 1024;
 
 /// LOCK SAFETY: NOT USED IN KERNEL INTERRUPTS
 pub static PHYS_ALLOCATOR: Mutex<Option<PageFrameAllocator>> = Mutex::new(None);
@@ -28,7 +30,7 @@ pub static VIRT_MAPPER: Mutex<Option<OffsetPageTable<'static>>> = Mutex::new(Non
 #[macro_export]
 macro_rules! palloc {
     () => {
-        $crate::mem::PHYS_ALLOCATOR.lock().as_mut().expect("Allocator missing!!!").allocate_frame().expect("Physical OOM!!!")
+        ::x86_64::structures::paging::FrameAllocator::allocate_frame($crate::mem::PHYS_ALLOCATOR.lock().as_mut().expect("Allocator missing!!!")).expect("Physical OOM!!!")
     };
 }
 
@@ -172,7 +174,7 @@ pub unsafe fn init(memory_regions: &mut MemoryRegions) {
 
 pub const CONFIG: bootloader_api::BootloaderConfig = {
     let mut config = bootloader_api::BootloaderConfig::new_default();
-    config.kernel_stack_size = 100 * 1024;
+    config.kernel_stack_size = STACK_SIZE as u64;
     config.mappings.physical_memory = Some(Mapping::FixedAddress(OFFSET));
     config.mappings.dynamic_range_start = Some(OFFSET);
     config.mappings.dynamic_range_end = Some(0u64.wrapping_sub(HEAP_VIRT_SIZE as u64));
