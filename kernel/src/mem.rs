@@ -30,7 +30,7 @@ pub static VIRT_MAPPER: Mutex<Option<OffsetPageTable<'static>>> = Mutex::new(Non
 #[macro_export]
 macro_rules! palloc {
     () => {
-        $crate::mem::PHYS_ALLOCATOR.lock().as_mut().expect("Allocator missing!!!").allocate_frame().expect("Physical OOM!!!")
+        ::x86_64::structures::paging::FrameAllocator::allocate_frame($crate::mem::PHYS_ALLOCATOR.lock().as_mut().expect("Allocator missing!!!")).expect("Physical OOM!!!")
     };
 }
 
