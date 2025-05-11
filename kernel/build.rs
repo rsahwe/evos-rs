@@ -21,6 +21,7 @@ impl FrameBufferConfig {
         writeln!(file, "{}", match self.font.as_str() {
             "basic8x8" => "pub type Font = crate::text::font::Basic8x8;",
             "ter16x32" => "pub type Font = crate::text::font::Ter16x32;",
+            "sun8x16" => "pub type Font = crate::text::font::Sun8x16;",
             font => Err(format!("config::framebuffer::font: Invalid font {}", font))?
         })?;
 
