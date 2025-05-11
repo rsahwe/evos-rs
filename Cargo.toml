@@ -12,4 +12,8 @@ ovmf-prebuilt = "0.1.0-alpha.1"
 
 [workspace]
 resolver = "3"
-members = ["kernel"]
+members = [
+    "kernel",
+    "evx-format",
+    "compiler",
+]
