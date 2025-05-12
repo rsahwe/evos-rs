@@ -1,4 +1,4 @@
-use core::{fmt::Display, iter::Peekable, marker::PhantomData, ops::{Add, AddAssign, Range, RangeInclusive}, str::CharIndices};
+use core::{iter::Peekable, marker::PhantomData, ops::{Add, AddAssign, Range, RangeInclusive}, str::CharIndices};
 
 /// Range in src (exclusive)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -90,26 +90,6 @@ impl<'src> Add for Span<'src> {
 impl<'src> AddAssign for Span<'src> {
     fn add_assign(&mut self, rhs: Self) {
         *self = *self + rhs
-    }
-}
-
-/// A span that can be displayed in a nice way in error messages.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct DisplaySpan<'src> {
-    slice: &'src str,
-    source_name: &'src str,
-}
-
-impl<'src> DisplaySpan<'src> {
-    /// Turns a span into a source
-    pub fn from_source(_span: Span<'src>, _source: &'src str, _source_name: &'src str) -> Self {
-        todo!()
-    }
-}
-
-impl<'src> Display for DisplaySpan<'src> {
-    fn fmt(&self, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        todo!("Span display!!!")
     }
 }
 
@@ -215,12 +195,12 @@ pub struct SpannedLexerError<'src> {
 pub struct RawLexer<'src> {
     source: &'src str,
     chars: Peekable<CharIndices<'src>>,
-    complete: bool,
+    stopped: bool,
 }
 
 impl<'src> RawLexer<'src> {
     pub fn new(source: &'src str) -> Self {
-        Self { source, chars: source.char_indices().peekable(), complete: false }
+        Self { source, chars: source.char_indices().peekable(), stopped: false }
     }
 }
 
@@ -231,11 +211,11 @@ impl<'src> Iterator for RawLexer<'src> {
         let next = self.chars.next();
 
         if next.is_none() {
-            if self.complete {
+            if self.stopped {
                 return None;
             }
 
-            self.complete = true;
+            self.stopped = true;
 
             return Some(
                 Token::Error(LexerError::UnexpectedEof)
@@ -304,7 +284,10 @@ impl<'src> Iterator for RawLexer<'src> {
                     Err(_) => Token::Ident(slice).add_span(span),
                 }
             },
-            _ => todo!("Lexer for `{}`!!!", self.source)
+            _ => {
+                self.stopped = true;
+                Token::Error(LexerError::MalformedInput).add_span(Span::new_single(pos))
+            },
         })
     }
 }
@@ -403,5 +386,6 @@ mod tests {
         test_lexer_output!(" if test else some", [Token::Keyword(Keyword::If), Token::Ident("test"), Token::Keyword(Keyword::Else), Token::Ident("some"), Token::Error(LexerError::UnexpectedEof)].into_iter(), "Simple keyword test");
         test_lexer_output!(" fn test return some", [Token::Keyword(Keyword::Fn), Token::Ident("test"), Token::Keyword(Keyword::Return), Token::Ident("some"), Token::Error(LexerError::UnexpectedEof)].into_iter(), "Simple keyword test 2");
         test_lexer_output!("+||&", [Token::Symbol(Symbol::Add), Token::Symbol(Symbol::Or), Token::Symbol(Symbol::BitAnd), Token::Error(LexerError::UnexpectedEof)].into_iter(), "Simple symbol test");
+        test_lexer_output!("`", [Token::Error(LexerError::MalformedInput)].into_iter(), "Expecting failure!");
     }
 }
