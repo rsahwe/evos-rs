@@ -113,11 +113,65 @@ impl<'src> Display for DisplaySpan<'src> {
     }
 }
 
+/// All keywords that cannot be used for identifiers
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Keyword {
+    Fn,     // "fn"
+    Return, // "return"
+    If,     // "if"
+    Else,   // "else"
+}
+
+impl TryFrom<&str> for Keyword {
+    type Error = ();
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "fn" => Ok(Self::Fn),
+            "return" => Ok(Self::Return),
+            "if" => Ok(Self::If),
+            "else" => Ok(Self::Else),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Symbol {
+    Add,        // '+'
+    Sub,        // '-'
+    Star,       // '*'
+    Div,        // '/'
+    BitAnd,     // '&'
+    BitOr,      // '|'
+    BitXor,     // '^'
+    BitNot,     // '~'
+    LParen,     // '('
+    RParen,     // ')'
+    LBrack,     // '['
+    RBrack,     // ']'
+    LBrace,     // '{'
+    RBrace,     // '}'
+    Assing,     // '='
+    Less,       // '<'
+    Greater,    // '>'
+    LShift,     // "<<"
+    RShift,     // ">>"
+    And,        // "&&"
+    Or,         // "||"
+    Not,        // '!'
+    Ne,         // "!="
+}
+
 /// All possible basic elements of a source file
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Token<'src> {
     /// Identifier: started by a..z|A..Z|_ and then same or 0..9
     Ident(&'src str),
+    /// Keyword
+    Keyword(Keyword),
+    /// Symbol
+    Symbol(Symbol),
 
     // Errors:
     Error(LexerError),
@@ -193,9 +247,45 @@ impl<'src> Iterator for RawLexer<'src> {
 
         let (pos, chr) = next.unwrap();
 
-        match chr {
+        macro_rules! symbol {
+            ($symbol:expr) => {
+                Token::Symbol($symbol).add_span(Span::new_single(pos))
+            };
+            ($first:expr, $second:expr, $char:expr) => {
+                match self.chars.peek().copied() {
+                    Some((np, nc)) => match nc {
+                        $char => {
+                            self.chars.next();
+                            Token::Symbol($second).add_span(Span::new_inclusive(pos..=np))
+                        },
+                        _ => symbol!($first),
+                    },
+                    None => symbol!($first),
+                }
+            };
+        }
+
+        Some(match chr {
+            '+' => symbol!(Symbol::Add),
+            '-' => symbol!(Symbol::Sub),
+            '*' => symbol!(Symbol::Star),
+            '/' => symbol!(Symbol::Div),
+            '&' => symbol!(Symbol::BitAnd, Symbol::And, '&'),
+            '|' => symbol!(Symbol::BitOr, Symbol::Or, '|'),
+            '^' => symbol!(Symbol::BitXor),
+            '~' => symbol!(Symbol::BitNot),
+            '(' => symbol!(Symbol::LParen),
+            ')' => symbol!(Symbol::RParen),
+            '[' => symbol!(Symbol::LBrack),
+            ']' => symbol!(Symbol::RBrack),
+            '{' => symbol!(Symbol::LBrace),
+            '}' => symbol!(Symbol::RBrace),
+            '=' => symbol!(Symbol::Assing),
+            '<' => symbol!(Symbol::Less, Symbol::LShift, '<'),
+            '>' => symbol!(Symbol::Greater, Symbol::RShift, '>'),
+            '!' => symbol!(Symbol::Not, Symbol::Ne, '='),
             c if c.is_whitespace() => {
-                self.next()
+                self.next().expect("RawLexer did not return End reason!")
             },
             c if c.is_alphabetic() || c == '_' => {
                 let start = pos;
@@ -206,12 +296,16 @@ impl<'src> Iterator for RawLexer<'src> {
                     end = next.0;
                 }
 
-                //TODO: KEYWORDS
+                let slice = &self.source[start..=end];
+                let span = Span::new_inclusive(start..=end);
 
-                Some(Token::Ident(&self.source[start..=end]).add_span(Span::new_inclusive(start..=end)))
+                match Keyword::try_from(slice) {
+                    Ok(keyword) => Token::Keyword(keyword).add_span(span),
+                    Err(_) => Token::Ident(slice).add_span(span),
+                }
             },
             _ => todo!("Lexer for `{}`!!!", self.source)
-        }
+        })
     }
 }
 
@@ -306,5 +400,8 @@ mod tests {
 
         test_lexer_output!("  test\n ", [Token::Ident("test"), Token::Error(LexerError::UnexpectedEof)].into_iter(), "Simple ident test");
         test_lexer_output!("  te st\n ", [Token::Ident("te"), Token::Ident("st"), Token::Error(LexerError::UnexpectedEof)].into_iter(), "Simple ident test 2");
+        test_lexer_output!(" if test else some", [Token::Keyword(Keyword::If), Token::Ident("test"), Token::Keyword(Keyword::Else), Token::Ident("some"), Token::Error(LexerError::UnexpectedEof)].into_iter(), "Simple keyword test");
+        test_lexer_output!(" fn test return some", [Token::Keyword(Keyword::Fn), Token::Ident("test"), Token::Keyword(Keyword::Return), Token::Ident("some"), Token::Error(LexerError::UnexpectedEof)].into_iter(), "Simple keyword test 2");
+        test_lexer_output!("+||&", [Token::Symbol(Symbol::Add), Token::Symbol(Symbol::Or), Token::Symbol(Symbol::BitAnd), Token::Error(LexerError::UnexpectedEof)].into_iter(), "Simple symbol test");
     }
 }
