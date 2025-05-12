@@ -100,6 +100,9 @@ pub enum Keyword {
     Return, // "return"
     If,     // "if"
     Else,   // "else"
+    Trait,  // "trait"
+    Struct, // "struct"
+    Enum,   // "enum"
 }
 
 impl TryFrom<&str> for Keyword {
@@ -111,6 +114,9 @@ impl TryFrom<&str> for Keyword {
             "return" => Ok(Self::Return),
             "if" => Ok(Self::If),
             "else" => Ok(Self::Else),
+            "trait" => Ok(Self::Trait),
+            "struct" => Ok(Self::Struct),
+            "enum" => Ok(Self::Enum),
             _ => Err(()),
         }
     }
@@ -141,6 +147,10 @@ pub enum Symbol {
     Or,         // "||"
     Not,        // '!'
     Ne,         // "!="
+    Try,        // '?'
+    FieldAt,    // '@'
+    FnAt,       // '.'
+    IntoTrait,  // '#'
 }
 
 /// All possible basic elements of a source file
@@ -264,6 +274,10 @@ impl<'src> Iterator for RawLexer<'src> {
             '<' => symbol!(Symbol::Less, Symbol::LShift, '<'),
             '>' => symbol!(Symbol::Greater, Symbol::RShift, '>'),
             '!' => symbol!(Symbol::Not, Symbol::Ne, '='),
+            '?' => symbol!(Symbol::Try),
+            '@' => symbol!(Symbol::FieldAt),
+            '.' => symbol!(Symbol::FnAt),
+            '#' => symbol!(Symbol::IntoTrait),
             c if c.is_whitespace() => {
                 self.next().expect("RawLexer did not return End reason!")
             },
