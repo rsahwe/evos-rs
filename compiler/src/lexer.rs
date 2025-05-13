@@ -138,7 +138,14 @@ pub enum Symbol {
     RBrack,     // ']'
     LBrace,     // '{'
     RBrace,     // '}'
-    Assing,     // '='
+    Assign,     // '='
+    AddAssign,  // "+="
+    SubAssign,  // "-="
+    MulAssign,  // "*="
+    DivAssign,  // "/="
+    AndAssign,  // "&="
+    OrAssign,   // "|="
+    XorAssign,  // "^="
     Less,       // '<'
     Greater,    // '>'
     LShift,     // "<<"
@@ -147,6 +154,9 @@ pub enum Symbol {
     Or,         // "||"
     Not,        // '!'
     Ne,         // "!="
+    Eq,         // "=="
+    LessEq,     // "<="
+    GreaterEq,  // ">="
     Try,        // '?'
     FieldAt,    // '@'
     FnAt,       // '.'
@@ -238,31 +248,30 @@ impl<'src> Iterator for RawLexer<'src> {
         let (pos, chr) = next.unwrap();
 
         macro_rules! symbol {
-            ($symbol:expr) => {
-                Token::Symbol($symbol).add_span(Span::new_single(pos))
-            };
-            ($first:expr, $second:expr, $char:expr) => {
+            ($first:expr $(, $sym:expr, $chr:expr)*) => {
                 match self.chars.peek().copied() {
-                    Some((np, nc)) => match nc {
-                        $char => {
-                            self.chars.next();
-                            Token::Symbol($second).add_span(Span::new_inclusive(pos..=np))
-                        },
-                        _ => symbol!($first),
+                    Some((_np, nc)) => match nc {
+                        $(
+                            $chr => {
+                                self.chars.next();
+                                Token::Symbol($sym).add_span(Span::new_inclusive(pos..=_np))
+                            },
+                        )*
+                        _ => Token::Symbol($first).add_span(Span::new_single(pos)),
                     },
-                    None => symbol!($first),
+                    None => Token::Symbol($first).add_span(Span::new_single(pos)),
                 }
             };
         }
 
         Some(match chr {
-            '+' => symbol!(Symbol::Add),
-            '-' => symbol!(Symbol::Sub),
-            '*' => symbol!(Symbol::Star),
-            '/' => symbol!(Symbol::Div),
-            '&' => symbol!(Symbol::BitAnd, Symbol::And, '&'),
-            '|' => symbol!(Symbol::BitOr, Symbol::Or, '|'),
-            '^' => symbol!(Symbol::BitXor),
+            '+' => symbol!(Symbol::Add, Symbol::AddAssign, '='),
+            '-' => symbol!(Symbol::Sub, Symbol::SubAssign, '='),
+            '*' => symbol!(Symbol::Star, Symbol::MulAssign, '='),
+            '/' => symbol!(Symbol::Div, Symbol::DivAssign, '='),
+            '&' => symbol!(Symbol::BitAnd, Symbol::And, '&', Symbol::AndAssign, '='),
+            '|' => symbol!(Symbol::BitOr, Symbol::Or, '|', Symbol::OrAssign, '='),
+            '^' => symbol!(Symbol::BitXor, Symbol::XorAssign, '='),
             '~' => symbol!(Symbol::BitNot),
             '(' => symbol!(Symbol::LParen),
             ')' => symbol!(Symbol::RParen),
@@ -270,9 +279,9 @@ impl<'src> Iterator for RawLexer<'src> {
             ']' => symbol!(Symbol::RBrack),
             '{' => symbol!(Symbol::LBrace),
             '}' => symbol!(Symbol::RBrace),
-            '=' => symbol!(Symbol::Assing),
-            '<' => symbol!(Symbol::Less, Symbol::LShift, '<'),
-            '>' => symbol!(Symbol::Greater, Symbol::RShift, '>'),
+            '=' => symbol!(Symbol::Assign, Symbol::Eq, '='),
+            '<' => symbol!(Symbol::Less, Symbol::LShift, '<', Symbol::LessEq, '='),
+            '>' => symbol!(Symbol::Greater, Symbol::RShift, '>', Symbol::GreaterEq, '='),
             '!' => symbol!(Symbol::Not, Symbol::Ne, '='),
             '?' => symbol!(Symbol::Try),
             '@' => symbol!(Symbol::FieldAt),
