@@ -212,7 +212,7 @@ pub struct SpannedLexerError<'src> {
 
 /// The iterator over tokens.
 #[derive(Clone, Debug)]
-pub struct RawLexer<'src> {
+pub(self) struct RawLexer<'src> {
     source: &'src str,
     chars: Peekable<CharIndices<'src>>,
     stopped: bool,
@@ -323,6 +323,10 @@ pub struct Lexer<'src> {
 }
 
 impl<'src> Lexer<'src> {
+    pub fn new(source: &'src str) -> Self {
+        Self { inner: RawLexer::new(source).peekable(), end_error: None }
+    }
+
     pub fn next(&mut self) -> Result<SpannedToken<'src>, SpannedLexerError<'src>> {
         match self.end_error {
             Some(error) => Err(error),
