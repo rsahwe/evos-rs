@@ -24,6 +24,7 @@ impl<'src> Span<'src> {
         Self::new_raw(range.start, range.end)
     }
 
+    /// Constructs a new span for a single character
     pub const fn new_single(position: usize) -> Self {
         Self::new_raw(position, position + 1)
     }
@@ -96,13 +97,20 @@ impl<'src> AddAssign for Span<'src> {
 /// All keywords that cannot be used for identifiers
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Keyword {
-    Fn,     // "fn"
-    Return, // "return"
-    If,     // "if"
-    Else,   // "else"
-    Trait,  // "trait"
-    Struct, // "struct"
-    Enum,   // "enum"
+    /// Function definition "fn"
+    Fn,
+    /// Return for returning from functions "return"
+    Return,
+    /// If statement "if"
+    If,
+    /// Else statement "else"
+    Else,
+    /// Trait definition "trait"
+    Trait,
+    /// Struct definition "struct"
+    Struct,
+    /// Enum definition "enum"
+    Enum,
 }
 
 impl TryFrom<&str> for Keyword {
@@ -122,45 +130,83 @@ impl TryFrom<&str> for Keyword {
     }
 }
 
+/// Symbols mainly for operators
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Symbol {
-    Add,        // '+'
-    Sub,        // '-'
-    Star,       // '*'
-    Div,        // '/'
-    BitAnd,     // '&'
-    BitOr,      // '|'
-    BitXor,     // '^'
-    BitNot,     // '~'
-    LParen,     // '('
-    RParen,     // ')'
-    LBrack,     // '['
-    RBrack,     // ']'
-    LBrace,     // '{'
-    RBrace,     // '}'
-    Assign,     // '='
-    AddAssign,  // "+="
-    SubAssign,  // "-="
-    MulAssign,  // "*="
-    DivAssign,  // "/="
-    AndAssign,  // "&="
-    OrAssign,   // "|="
-    XorAssign,  // "^="
-    Less,       // '<'
-    Greater,    // '>'
-    LShift,     // "<<"
-    RShift,     // ">>"
-    And,        // "&&"
-    Or,         // "||"
-    Not,        // '!'
-    Ne,         // "!="
-    Eq,         // "=="
-    LessEq,     // "<="
-    GreaterEq,  // ">="
-    Try,        // '?'
-    FieldAt,    // '@'
-    FnAt,       // '.'
-    IntoTrait,  // '#'
+    /// Addition '+'
+    Add,
+    /// Subtraction '-'
+    Sub,
+    /// Dereference or Multiplication '*'
+    Star,
+    /// Division '/'
+    Div,
+    /// Bitwise And '&'
+    BitAnd,
+    /// Bitwise Or '|'
+    BitOr,
+    /// Bitwise Xor '^'
+    BitXor,
+    /// Bitwise Not '~'
+    BitNot,
+    /// '('
+    LParen,
+    /// ')'
+    RParen,
+    /// Array syntax '['
+    LBrack,
+    /// Array syntax ']'
+    RBrack,
+    /// Block start '{'
+    LBrace,
+    /// Block end '}'
+    RBrace,
+    /// Assignment '='
+    Assign,
+    /// Assignment and Addition "+="
+    AddAssign,
+    /// Assignment and Subtraction "-="
+    SubAssign,
+    /// Assignment and Multiplication "*="
+    MulAssign,
+    /// Assignment and Division "/="
+    DivAssign,
+    /// Assignment and Bitwise And "&="
+    AndAssign,
+    /// Assignment and Bitwise Or "|="
+    OrAssign,
+    /// Assignment and Bitwise Xor "^="
+    XorAssign,
+    /// Less than comparison '<'
+    Less,
+    /// Greater than comparison '>'
+    Greater,
+    /// Left shift "<<"
+    LShift,
+    /// Right shift ">>"
+    RShift,
+    /// Logical And "&&"
+    And,
+    /// Logical Or "||"
+    Or,
+    /// Logical Not '!'
+    Not,
+    /// Not equal comparison "!="
+    Ne,
+    /// Equal comparison "=="
+    Eq,
+    /// Less than or equal comparison "<="
+    LessEq,
+    /// Greater than or equal comparison ">="
+    GreaterEq,
+    /// Try operator '?'
+    Try,
+    /// FieldAt operator '@'
+    FieldAt,
+    /// FnAt operator '.'
+    FnAt,
+    /// IntoTrait operator '#'
+    IntoTrait,
 }
 
 /// All possible basic elements of a source file
@@ -173,11 +219,12 @@ pub enum Token<'src> {
     /// Symbol
     Symbol(Symbol),
 
-    // Errors:
+    /// Lexer errors
     Error(LexerError),
 }
 
 impl<'src> Token<'src> {
+    /// Include a span with a token
     pub const fn add_span(self, span: Span<'src>) -> SpannedToken<'src> {
         SpannedToken { token: self, span }
     }
@@ -186,18 +233,23 @@ impl<'src> Token<'src> {
 /// Token + Span
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SpannedToken<'src> {
+    /// The token
     pub token: Token<'src>,
+    /// The associated span
     pub span: Span<'src>,
 }
 
 /// Gives a reason for why the lexer stopped.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum LexerError {
+    /// Unlexable characters
     MalformedInput,
+    /// Eof
     UnexpectedEof,
 }
 
 impl<'src> LexerError {
+    /// Include a span with an error
     pub const fn add_span(self, span: Span<'src>) -> SpannedLexerError<'src> {
         SpannedLexerError { error: self, span }
     }
@@ -206,7 +258,9 @@ impl<'src> LexerError {
 /// LexerError + Span
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SpannedLexerError<'src> {
+    /// The error
     pub error: LexerError,
+    /// The associated span
     pub span: Span<'src>,
 }
 
@@ -323,10 +377,12 @@ pub struct Lexer<'src> {
 }
 
 impl<'src> Lexer<'src> {
+    /// Create a lexer for a source string
     pub fn new(source: &'src str) -> Self {
         Self { inner: RawLexer::new(source).peekable(), end_error: None }
     }
 
+    /// Get the next token or error
     pub fn next(&mut self) -> Result<SpannedToken<'src>, SpannedLexerError<'src>> {
         match self.end_error {
             Some(error) => Err(error),
@@ -347,6 +403,7 @@ impl<'src> Lexer<'src> {
         }
     }
 
+    /// Peek the next token or error
     pub fn peek(&mut self) -> Result<SpannedToken<'src>, SpannedLexerError<'src>> {
         match self.end_error {
             Some(error) => Err(error),
