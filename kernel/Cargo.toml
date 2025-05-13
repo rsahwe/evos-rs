@@ -11,6 +11,7 @@ bitvec = { version = "1.0.1", default-features = false }
 bootloader_api = "0.11.10"
 chrono = { version = "0.4.41", default-features = false }
 linked_list_allocator = { version = "0.10.5", default-features = false }
+pc-keyboard = "0.8.0"
 raw-cpuid = "11.5.0"
 spin = "0.10.0"
 uart_16550 = "0.3.2"

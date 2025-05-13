@@ -213,6 +213,7 @@ dependencies = [
  "chrono",
  "config",
  "linked_list_allocator",
+ "pc-keyboard",
  "raw-cpuid 11.5.0",
  "serde",
  "spin",
@@ -422,6 +423,12 @@ name = "pathdiff"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df94ce210e5bc13cb6651479fa48d14f601d9858cfe0467f43ae157023b938d3"
+
+[[package]]
+name = "pc-keyboard"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0ca629cbb3f0d5b699c338f0129ff78c9bfd7ea8b1258ad529bff490dc8ed5a"
 
 [[package]]
 name = "pest"

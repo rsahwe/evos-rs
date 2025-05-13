@@ -1,6 +1,8 @@
+#![allow(unexpected_cfgs)]
+
 use core::fmt::Display;
 
-use crate::{print, println};
+use crate::println;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ModuleMetadata {
@@ -20,15 +22,18 @@ pub struct Module {
     init: fn() -> bool,
 }
 
+pub(crate) mod ps2;
+
 static KERNEL_MODULES: &[&Module] = &[
-    
+    #[cfg(module_ps2)]
+    &ps2::PS2_MODULE,
 ];
 
 pub(crate) fn init() {
     println!("DEBUG: Initializing modules:");
     for module in KERNEL_MODULES {
-        print!("DEBUG:     Initializing module `{}`...", (module.metadata)());
+        println!("DEBUG:     Initializing module `{}`:", (module.metadata)());
         let success = (module.init)();
-        println!("{}", if success { "[OK]" } else { "[ERR]" });
+        println!("DEBUG:     Module loaded {}", if success { "[OK]" } else { "[ERR]" });
     }
 }
