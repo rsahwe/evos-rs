@@ -102,7 +102,7 @@ impl Write for FramePrinter {
             self.write_fmt(format_args!("[{:03}.{:03}] ", (time / 1000000000) % 1000, (time / 1000000) % 1000))?;
         }
 
-        let c = c.as_ascii().ok_or(core::fmt::Error)?;
+        let c = c.as_ascii().unwrap_or(Char::EndOfTransmission /* SQUARE */);
         match c {
             Char::LineFeed => {
                 self.framebuffer.buffer_mut().copy_within(self.info.stride * self.info.bytes_per_pixel * FramePrinterFont::height().., 0);

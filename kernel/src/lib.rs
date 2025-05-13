@@ -19,6 +19,7 @@ mod panic;
 pub mod log;
 pub mod time;
 pub(crate) mod syscalls;
+pub mod modules;
 
 pub use mem::CONFIG as BOOT_CONFIG;
 
@@ -33,4 +34,6 @@ pub fn init(boot_info: &'static mut BootInfo) {
     unsafe { mem::init(&mut boot_info.memory_regions) };
     syscalls::init();
     println!("INFO: SYSCALLS initialized");
+    modules::init();
+    println!("INFO: Modules initialized");
 }

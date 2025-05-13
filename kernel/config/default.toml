@@ -1,2 +1,8 @@
 [framebuffer]
 font = "basic8x8"
+
+[modules]
+enable_ps2 = true
+
+[keyboard]
+layout = "en"

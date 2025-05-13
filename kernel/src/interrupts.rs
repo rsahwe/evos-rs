@@ -3,7 +3,7 @@ use core::{mem::transmute, ops::RangeInclusive};
 use spin::{Mutex, MutexGuard};
 use x86_64::{instructions::{interrupts::enable, port::Port}, registers::control::Cr2, set_general_handler, structures::idt::{EntryOptions, ExceptionVector, InterruptDescriptorTable, InterruptStackFrame}, PrivilegeLevel};
 
-use crate::{println, time::Time};
+use crate::{modules::ps2::ps2_keyboard_interrupt, println, time::Time};
 
 static HANDLER: Mutex<InterruptDescriptorTable> = Mutex::new(InterruptDescriptorTable::new());
 
@@ -77,7 +77,7 @@ impl Pic {
     unsafe fn mask(&mut self) {
         unsafe {
             self.first_data.write(0b1110_0000);// Disable Lpt1, Lpt2 and Floppy
-            self.second_data.write(0b0010_1110);// Disable Processor, Free3, Free2 and Free1
+            self.second_data.write(0b0011_1110);// Disable Processor, Mouse, Free3, Free2 and Free1
         }
     }
 
@@ -88,11 +88,10 @@ impl Pic {
 
         match irq {
             PicInterrupt::Timer => Time::tick_step(pic_guard),//TODO: SCHEDULE? MAYBE CHECK FOR INTERRUPT IN INTERRUPT WITH LOCK?
-            PicInterrupt::Keyboard => todo!("{:?}", irq),
+            PicInterrupt::Keyboard => ps2_keyboard_interrupt(),
             PicInterrupt::Com2 => todo!("{:?}", irq),
             PicInterrupt::Com1 => todo!("{:?}", irq),
             PicInterrupt::Cmos => todo!("{:?}", irq),
-            PicInterrupt::Mouse => todo!("{:?}", irq),
             PicInterrupt::PrimaryAta => todo!("{:?}", irq),
             PicInterrupt::SecondaryAta => todo!("{:?}", irq),
             _ => unreachable!("Unexpected irq {:?}", irq),
@@ -149,7 +148,7 @@ enum PicInterrupt {
     Free1           = 0x09,// Not important?
     Free2           = 0x0A,// Not important?
     Free3           = 0x0B,// Not important?
-    Mouse           = 0x0C,
+    Mouse           = 0x0C,// Not used
     Processor       = 0x0D,// Not important?
     PrimaryAta      = 0x0E,
     SecondaryAta    = 0x0F,

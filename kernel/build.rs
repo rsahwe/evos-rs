@@ -30,8 +30,42 @@ impl FrameBufferConfig {
 }
 
 #[derive(Debug, Deserialize)]
+struct ModulesConfig {
+    enable_ps2: bool,
+}
+
+impl ModulesConfig {
+    fn write_to_file(self, _file: &mut BufWriter<std::fs::File>) -> Result<(), Box<dyn Error>> {
+        if self.enable_ps2 {
+            println!("cargo::rustc-cfg=module_ps2");
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct KeyboardConfig {
+    layout: String,
+}
+
+impl KeyboardConfig {
+    fn write_to_file(self, file: &mut BufWriter<std::fs::File>) -> Result<(), Box<dyn Error>> {
+        writeln!(file, "{}", match self.layout.as_str() {
+            "en" => "pub type Layout = pc_keyboard::layouts::Us104Key;\npub const fn new_layout() -> pc_keyboard::layouts::Us104Key { pc_keyboard::layouts::Us104Key }",
+            "de" => "pub type Layout = pc_keyboard::layouts::De105Key;\npub const fn new_layout() -> pc_keyboard::layouts::De105Key { pc_keyboard::layouts::De105Key }",
+            layout => Err(format!("config::keyboard::layout: Invalid layout {}", layout))?
+        })?;
+        
+        Ok(())
+    }
+}
+
+#[derive(Debug, Deserialize)]
 struct KernelConfig {
     framebuffer: FrameBufferConfig,
+    modules: ModulesConfig,
+    keyboard: KeyboardConfig,
 }
 
 impl KernelConfig {
@@ -40,12 +74,18 @@ impl KernelConfig {
         let file = &mut file;
 
         conf_dep!(self, file, framebuffer);
+        conf_dep!(self, file, modules);
+        conf_dep!(self, file, keyboard);
 
         Ok(())
     }
 }
 
 fn main() {
+    println!("cargo::rerun-if-changed=build.rs");
+    println!("cargo::rerun-if-changed=config/default.toml");
+    println!("cargo::rerun-if-changed=config/local.toml");
+
     let kc = Config::builder()
         .add_source(File::with_name("config/default"))
         .add_source(File::with_name("config/local").required(false))
