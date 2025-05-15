@@ -11,7 +11,7 @@ use crate::info;
 pub mod phys;
 pub mod virt;
 
-pub const MIN_PHYSICAL: usize = 1024 * 1024 * 10; // 10 MiB
+pub const MIN_PHYSICAL_FREE: usize = 1024 * 1024 * 10; // 10 MiB
 pub const OFFSET: u64 = 0xffff800000000000;
 pub const HEAP_VIRT_SIZE: usize = 1024 * 1024 * 1024 * 1; // 1 GiB
 pub const HEAP_VIRT_BASE: usize = 0usize.wrapping_sub(HEAP_VIRT_SIZE);
@@ -169,7 +169,7 @@ pub unsafe fn init(memory_regions: &mut MemoryRegions) {
     let size = PHYS_ALLOCATOR.lock().as_ref().unwrap().size();
     let free = PHYS_ALLOCATOR.lock().as_ref().unwrap().free();
     info!("Memory initialized with 0x{:016x} physical bytes (0x{:016x} used)", size, size - free);
-    assert!(free > MIN_PHYSICAL);
+    assert!(free > MIN_PHYSICAL_FREE, "Not enough physical memory 0x{:x} free < 0x{:x} required!!!", free, MIN_PHYSICAL_FREE);
 }
 
 pub const CONFIG: bootloader_api::BootloaderConfig = {
