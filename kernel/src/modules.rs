@@ -2,7 +2,7 @@
 
 use core::fmt::Display;
 
-use crate::println;
+use crate::debug;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ModuleMetadata {
@@ -29,11 +29,17 @@ static KERNEL_MODULES: &[&Module] = &[
     &ps2::PS2_MODULE,
 ];
 
-pub(crate) fn init() {
-    println!("DEBUG: Initializing modules:");
+pub(crate) fn init() -> (usize, usize) {
+    debug!("Initializing modules:");
+
+    let mut count = 0;
+
     for module in KERNEL_MODULES {
-        println!("DEBUG:     Initializing module `{}`:", (module.metadata)());
+        debug!("    Initializing module `{}`:", (module.metadata)());
         let success = (module.init)();
-        println!("DEBUG:     Module loaded {}", if success { "[OK]" } else { "[ERR]" });
+        debug!("    Module loaded {}", if success { "[OK]" } else { "[ERR]" });
+        count += success as usize;
     }
+    
+    (count, KERNEL_MODULES.len())
 }
