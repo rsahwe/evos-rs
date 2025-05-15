@@ -1,4 +1,6 @@
-use std::{env, error::Error, io::{BufWriter, Write}, path::{Path, PathBuf}};
+#![feature(exit_status_error)]
+
+use std::{borrow::Cow, env, error::Error, io::{BufWriter, Write}, path::{Path, PathBuf}, process::{Command, Stdio}};
 
 use config::{Config, File};
 use serde::Deserialize;
@@ -113,4 +115,16 @@ fn main() {
     kc
         .write_to_file(out_path.join("config.rs"))
         .expect("Could not write config!");
+
+    let mut git_branch = Command::new("git");
+    let git_branch = git_branch.args(["rev-parse", "--abbrev-ref", "HEAD"]).stdout(Stdio::piped());
+
+    let git_branch = git_branch.output().unwrap();
+    let git_branch = git_branch.exit_ok();
+    let git_branch = match git_branch {
+        Ok(ref out) => String::from_utf8_lossy(&out.stdout),
+        Err(_) => Cow::Borrowed("detached"),
+    };
+
+    println!("cargo::rustc-env=EVOS_BUILD_ID={}", git_branch);
 }
