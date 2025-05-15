@@ -15,36 +15,44 @@ macro_rules! _println {
 #[macro_export]
 macro_rules! error {
     ($($arg:tt)*) => {{
-        let color = $crate::log::Log::swap_color(($crate::text::format::Color(255, 0, 0), $crate::text::format::Color(0, 0, 0)));
-        let _ = $crate::_println!("ERROR: {}", ::core::format_args!($($arg)*));
-        let _ = $crate::log::Log::swap_color(color);
+        if $crate::config::LOG_LEVEL >= $crate::config::LogLevel::Error {
+            let color = $crate::log::Log::swap_color(($crate::text::format::Color(255, 0, 0), $crate::text::format::Color(0, 0, 0)));
+            let _ = $crate::_println!("ERROR: {}", ::core::format_args!($($arg)*));
+            let _ = $crate::log::Log::swap_color(color);
+        }
     }};
 }
 
 #[macro_export]
 macro_rules! warn {
     ($($arg:tt)*) => {{
-        let color = $crate::log::Log::swap_color(($crate::text::format::Color(255, 255, 0), $crate::text::format::Color(0, 0, 0)));
-        let _ = $crate::_println!("WARN : {}", ::core::format_args!($($arg)*));
-        let _ = $crate::log::Log::swap_color(color);
+        if $crate::config::LOG_LEVEL >= $crate::config::LogLevel::Warn {
+            let color = $crate::log::Log::swap_color(($crate::text::format::Color(255, 255, 0), $crate::text::format::Color(0, 0, 0)));
+            let _ = $crate::_println!("WARN : {}", ::core::format_args!($($arg)*));
+            let _ = $crate::log::Log::swap_color(color);
+        }
     }};
 }
 
 #[macro_export]
 macro_rules! info {
     ($($arg:tt)*) => {{
-        let color = $crate::log::Log::swap_color(($crate::text::format::Color(0, 255, 0), $crate::text::format::Color(0, 0, 0)));
-        let _ = $crate::_println!("INFO : {}", ::core::format_args!($($arg)*));
-        let _ = $crate::log::Log::swap_color(color);
+        if $crate::config::LOG_LEVEL >= $crate::config::LogLevel::Info {
+            let color = $crate::log::Log::swap_color(($crate::text::format::Color(0, 255, 0), $crate::text::format::Color(0, 0, 0)));
+            let _ = $crate::_println!("INFO : {}", ::core::format_args!($($arg)*));
+            let _ = $crate::log::Log::swap_color(color);
+        }
     }};
 }
 
 #[macro_export]
 macro_rules! debug {
     ($($arg:tt)*) => {{
-        let color = $crate::log::Log::swap_color(($crate::text::format::Color(128, 128, 255), $crate::text::format::Color(0, 0, 0)));
-        let _ = $crate::_println!("DEBUG: {}", ::core::format_args!($($arg)*));
-        let _ = $crate::log::Log::swap_color(color);
+        if $crate::config::LOG_LEVEL >= $crate::config::LogLevel::Debug {
+            let color = $crate::log::Log::swap_color(($crate::text::format::Color(128, 128, 255), $crate::text::format::Color(0, 0, 0)));
+            let _ = $crate::_println!("DEBUG: {}", ::core::format_args!($($arg)*));
+            let _ = $crate::log::Log::swap_color(color);
+        }
     }};
 }
 
