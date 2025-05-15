@@ -1,14 +1,14 @@
 #[macro_export]
-macro_rules! print {
+macro_rules! _print {
     ($($arg:tt)*) => {{
         let _ = $crate::log::Log::print(::core::format_args!($($arg)*));
     }};
 }
 
 #[macro_export]
-macro_rules! println {
+macro_rules! _println {
     ($($arg:tt)*) => {{
-        let _ = $crate::print!("{}\n", ::core::format_args!($($arg)*));
+        let _ = $crate::_print!("{}\n", ::core::format_args!($($arg)*));
     }};
 }
 
@@ -16,7 +16,7 @@ macro_rules! println {
 macro_rules! error {
     ($($arg:tt)*) => {{
         let color = $crate::log::Log::swap_color(($crate::text::format::Color(255, 0, 0), $crate::text::format::Color(0, 0, 0)));
-        let _ = $crate::println!("ERROR: {}", ::core::format_args!($($arg)*));
+        let _ = $crate::_println!("ERROR: {}", ::core::format_args!($($arg)*));
         let _ = $crate::log::Log::swap_color(color);
     }};
 }
@@ -25,7 +25,7 @@ macro_rules! error {
 macro_rules! warn {
     ($($arg:tt)*) => {{
         let color = $crate::log::Log::swap_color(($crate::text::format::Color(255, 255, 0), $crate::text::format::Color(0, 0, 0)));
-        let _ = $crate::println!("WARN : {}", ::core::format_args!($($arg)*));
+        let _ = $crate::_println!("WARN : {}", ::core::format_args!($($arg)*));
         let _ = $crate::log::Log::swap_color(color);
     }};
 }
@@ -34,7 +34,7 @@ macro_rules! warn {
 macro_rules! info {
     ($($arg:tt)*) => {{
         let color = $crate::log::Log::swap_color(($crate::text::format::Color(0, 255, 0), $crate::text::format::Color(0, 0, 0)));
-        let _ = $crate::println!("INFO : {}", ::core::format_args!($($arg)*));
+        let _ = $crate::_println!("INFO : {}", ::core::format_args!($($arg)*));
         let _ = $crate::log::Log::swap_color(color);
     }};
 }
@@ -43,7 +43,7 @@ macro_rules! info {
 macro_rules! debug {
     ($($arg:tt)*) => {{
         let color = $crate::log::Log::swap_color(($crate::text::format::Color(128, 128, 255), $crate::text::format::Color(0, 0, 0)));
-        let _ = $crate::println!("DEBUG: {}", ::core::format_args!($($arg)*));
+        let _ = $crate::_println!("DEBUG: {}", ::core::format_args!($($arg)*));
         let _ = $crate::log::Log::swap_color(color);
     }};
 }
