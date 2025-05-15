@@ -4,7 +4,7 @@ use bitvec::slice::BitSlice;
 use bootloader_api::info::{MemoryRegion, MemoryRegionKind, MemoryRegions};
 use x86_64::{structures::paging::{frame::PhysFrameRange, FrameAllocator, FrameDeallocator, PageSize, PhysFrame, Size4KiB}, PhysAddr, VirtAddr};
 
-use crate::println;
+use crate::debug;
 
 use super::OFFSET;
 
@@ -120,7 +120,7 @@ pub struct PageFrameAllocator {
 impl PageFrameAllocator {
     /// SAFETY: MEMORYREGIONS MUST BE VALID AND REMAIN MAPPED
     pub unsafe fn new(regions: &mut MemoryRegions) -> Self {
-        println!("DEBUG: PageFrameAllocator::new():");
+        debug!("PageFrameAllocator::new():");
 
         let raw = &mut *regions;
         let mut start = 0;
@@ -147,7 +147,7 @@ impl PageFrameAllocator {
         let raw = &mut raw[..start];
 
         for region in raw.iter_mut() {
-            println!("DEBUG:     MemReg [0x{:016x}-0x{:016x}]", region.start, region.end);
+            debug!("    MemReg [0x{:016x}-0x{:016x}]", region.start, region.end);
             let ptr = region as *mut MemoryRegion as *mut SSRPFAReferenceStruct;
 
             #[allow(unused)]

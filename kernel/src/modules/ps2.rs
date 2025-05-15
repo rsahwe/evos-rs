@@ -4,7 +4,7 @@ use pc_keyboard::{HandleControl, Keyboard, ScancodeSet1};
 use spin::Mutex;
 use x86_64::instructions::port::{Port, PortReadOnly, PortWriteOnly};
 
-use crate::println;
+use crate::debug;
 
 use super::{Module, ModuleMetadata};
 
@@ -35,7 +35,7 @@ fn ps2_init() -> bool {
     let mut _ps2_control = PS2_CONTROL;
 
     KEYBOARD_EXISTS.store(true, Ordering::Relaxed);
-    println!("DEBUG:         Keyboard assumed to exist...");
+    debug!("        Keyboard assumed to exist...");
 
     true
 }
@@ -59,7 +59,7 @@ pub fn ps2_keyboard_interrupt() {
     match keyboard_guard.add_byte(scancode) {
         Ok(key) => match key.map(|ke| keyboard_guard.process_keyevent(ke)) {
             Some(key) => match key {
-                Some(key) => println!("DEBUG: KEYBOARD: {:?}", key),//TODO:
+                Some(key) => debug!("KEYBOARD: {:?}", key),//TODO:
                 None => (),
             },
             None => (),

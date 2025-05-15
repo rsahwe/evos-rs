@@ -3,7 +3,7 @@ use core::{mem::transmute, ops::RangeInclusive};
 use spin::{Mutex, MutexGuard};
 use x86_64::{instructions::{interrupts::enable, port::Port}, registers::control::Cr2, set_general_handler, structures::idt::{EntryOptions, ExceptionVector, InterruptDescriptorTable, InterruptStackFrame}, PrivilegeLevel};
 
-use crate::{modules::ps2::ps2_keyboard_interrupt, println, time::Time};
+use crate::{error, modules::ps2::ps2_keyboard_interrupt, time::Time};
 
 static HANDLER: Mutex<InterruptDescriptorTable> = Mutex::new(InterruptDescriptorTable::new());
 
@@ -225,7 +225,7 @@ fn handler_func(frame: InterruptStackFrame, index: u8, error_code: Option<u64>) 
             Ok(vector) => {
                 match vector {
                     // TODO: COLLECT FATAL
-                    _ => println!("EMERGENCY WARN: unhandled user exception {:?} at {:?}", vector, frame.instruction_pointer),
+                    _ => error!("unhandled user exception {:?} at {:?}", vector, frame.instruction_pointer),
                 }
             },
             Err(_) => {

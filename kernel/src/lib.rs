@@ -25,15 +25,15 @@ pub use mem::CONFIG as BOOT_CONFIG;
 
 pub fn init(boot_info: &'static mut BootInfo) {
     log::init(&mut boot_info.framebuffer);
-    println!("INFO: Logging initialized");
+    info!("Logging initialized");
     descriptors::init();
-    println!("INFO: GDT & TSS initialized");
+    info!("GDT & TSS initialized");
     interrupts::init();
-    println!("INFO: IDT initialized");
+    info!("IDT initialized");
     // SAFETY: MEMORY REGIONS ARE VALID AND LATER UNUSED
     unsafe { mem::init(&mut boot_info.memory_regions) };
     syscalls::init();
-    println!("INFO: SYSCALLS initialized");
-    modules::init();
-    println!("INFO: Modules initialized");
+    info!("SYSCALLS initialized");
+    let (successful, total) = modules::init();
+    info!("Modules initialized ({}/{})", successful, total);
 }

@@ -66,6 +66,7 @@ struct KernelConfig {
     framebuffer: FrameBufferConfig,
     modules: ModulesConfig,
     keyboard: KeyboardConfig,
+    log_level: String,
 }
 
 impl KernelConfig {
@@ -76,6 +77,16 @@ impl KernelConfig {
         conf_dep!(self, file, framebuffer);
         conf_dep!(self, file, modules);
         conf_dep!(self, file, keyboard);
+
+        writeln!(file, "#[derive(PartialOrd, Ord, PartialEq, Eq)]\npub enum LogLevel {{\n    Critical,Error,Warn,Info,Debug\n}}")?;
+        writeln!(file, "pub const LOG_LEVEL: LogLevel = {};", match self.log_level.as_str() {
+            "debug" => "LogLevel::Debug",
+            "info" => "LogLevel::Info",
+            "warn" => "LogLevel::Warn",
+            "error" => "LogLevel::Error",
+            "critical" => "LogLevel::Critical",
+            _ => Err(format!("config::LOG_LEVEL: Invalid level {}", self.log_level))?
+        })?;
 
         Ok(())
     }

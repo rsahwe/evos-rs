@@ -3,7 +3,7 @@ use core::{arch::naked_asm, fmt::{Debug, Display}, mem::{offset_of, transmute}, 
 use spin::{Mutex, MutexGuard};
 use x86_64::{instructions::interrupts::{disable, enable}, registers::{control::{Efer, EferFlags}, model_specific::{GsBase, KernelGsBase, LStar, SFMask, Star}, rflags::RFlags, segmentation::{Segment, GS}}, structures::gdt::SegmentSelector, VirtAddr};
 
-use crate::{descriptors::{KCS, KDS, UCS, UDS}, mem::STACK_SIZE, println};
+use crate::{descriptors::{KCS, KDS, UCS, UDS}, mem::STACK_SIZE, debug};
 
 static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
@@ -139,7 +139,7 @@ extern "cdecl" fn syscall_handler(combined: Combined) -> usize {
     //TODO:
     enable();//TODO: ????
 
-    println!("Got syscall {} with args {}", number, args);
+    debug!("Got syscall {} with args {}", number, args);
 
     disable();//TODO: ????
 

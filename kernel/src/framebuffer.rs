@@ -55,6 +55,21 @@ impl FramePrinter {
         })
     }
 
+    pub fn set_default_static_colors(fg_color: Color, bg_color: Color) {
+        without_interrupts(|| {
+            match FRAMEBUFFER.try_lock() {
+                Some(mut guard) => match *guard {
+                    Some(ref mut fb) => {
+                        fb.fg_color = fg_color;
+                        fb.bg_color = bg_color;
+                    },
+                    None => (),
+                },
+                None => (),
+            }
+        })
+    }
+
     pub fn emergency_print_default_static(args: Arguments) -> core::fmt::Result {
         // SAFETY: ONLY USED IN EMERGENCY (IE PANIC OR SMTH)
         unsafe { FRAMEBUFFER.force_unlock() };
