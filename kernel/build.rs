@@ -127,4 +127,5 @@ fn main() {
     };
 
     println!("cargo::rustc-env=EVOS_BUILD_ID={}", git_branch);
+    println!("cargo::rustc-env=EVOS_BUILD_PROFILE={}", std::env::var("PROFILE").unwrap());
 }

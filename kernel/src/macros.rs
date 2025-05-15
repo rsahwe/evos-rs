@@ -15,7 +15,7 @@ macro_rules! _println {
 #[macro_export]
 macro_rules! print_init_msg {
     () => {{
-        let _ = $crate::_println!("Evos v{}-{} build {} UTC", ::core::env!("CARGO_PKG_VERSION"), ::core::env!("EVOS_BUILD_ID"), ::compile_time::datetime_str!());
+        let _ = $crate::_println!("Evos v{}-{} {} build {} UTC", ::core::env!("CARGO_PKG_VERSION"), ::core::env!("EVOS_BUILD_ID"), ::core::env!("EVOS_BUILD_PROFILE"), ::compile_time::datetime_str!());
     }};
 }
 
