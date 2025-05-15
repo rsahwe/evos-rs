@@ -3,7 +3,7 @@ use core::{arch::naked_asm, fmt::{Debug, Display}, mem::{offset_of, transmute}, 
 use spin::{Mutex, MutexGuard};
 use x86_64::{instructions::interrupts::{disable, enable}, registers::{control::{Efer, EferFlags}, model_specific::{GsBase, KernelGsBase, LStar, SFMask, Star}, rflags::RFlags, segmentation::{Segment, GS}}, structures::gdt::SegmentSelector, VirtAddr};
 
-use crate::{descriptors::{KCS, KDS, UCS, UDS}, mem::STACK_SIZE, debug};
+use crate::{debug, descriptors::{KCS, KDS, UCS, UDS}, mem::STACK_SIZE};
 
 static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
@@ -22,9 +22,9 @@ impl GSVars {
 
     /// SAFETY: STACK MUST BE A UNIQUE REFERENCE
     unsafe fn init(&mut self, kernel_stack: &[u8; STACK_SIZE]) {
-        println!("Syscall entry at 0x{:016x}", syscall_entry as usize);
-        println!("Stack base 0x{:016x}", kernel_stack as *const _ as usize);
-        println!("Setting stack 0x{:016x}", kernel_stack as *const _ as usize + STACK_SIZE);
+        debug!("Syscall entry at 0x{:016x}", syscall_entry as usize);
+        debug!("Stack base 0x{:016x}", kernel_stack as *const _ as usize);
+        debug!("Setting stack 0x{:016x}", kernel_stack as *const _ as usize + STACK_SIZE);
         self.kernel_stack = kernel_stack as *const _ as usize + STACK_SIZE;
     }
 }
