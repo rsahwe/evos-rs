@@ -1,3 +1,5 @@
+use core::str::Utf8Error;
+
 use spin::RwLock;
 
 use crate::debug;
@@ -24,6 +26,10 @@ pub(crate) fn init(ramdisk_location: u64, ramdisk_len: u64) {
 impl InitRamFs {
     pub fn open_file(name: &str) -> Option<&'static [u8]> {
         Self::iter().find_map(|(file, content)| (file == name).then(|| content))
+    }
+
+    pub fn open_text_file(name: &str) -> Option<Result<&'static str, Utf8Error>> {
+        Self::iter().find_map(|(file, content)| (file == name).then(|| str::from_utf8(content)))
     }
 
     pub fn iter() -> InitRamFileIterator {
