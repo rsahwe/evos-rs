@@ -1,0 +1,4 @@
+- User processes
+- Vfs
+- Disk stuff
+- Compiler + Executables

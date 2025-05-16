@@ -20,12 +20,15 @@ pub mod log;
 pub mod time;
 pub(crate) mod syscalls;
 pub mod modules;
+pub mod initramfs;
 
 pub use mem::CONFIG as BOOT_CONFIG;
 
 pub fn init(boot_info: &'static mut BootInfo) {
     log::init(&mut boot_info.framebuffer);
     info!("Logging initialized");
+    initramfs::init(boot_info.ramdisk_addr.into_option().expect("Ramdisk missing!!!"), boot_info.ramdisk_len);
+    info!("InitRamFs initialized with {} files", initramfs::InitRamFs::iter().count());
     descriptors::init();
     info!("GDT & TSS initialized");
     interrupts::init();
