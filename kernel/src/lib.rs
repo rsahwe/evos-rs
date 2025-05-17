@@ -39,4 +39,6 @@ pub fn init(boot_info: &'static mut BootInfo) {
     info!("SYSCALLS initialized");
     let (successful, total) = modules::init();
     info!("Modules initialized ({}/{})", successful, total);
+    info!("Initialization complete!");
+    print_init_msg!();
 }
