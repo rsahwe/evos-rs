@@ -95,14 +95,14 @@ impl<'src> AddAssign for Span<'src> {
 }
 
 /// A type T associated with a Span
-#[derive(Clone, Copy, Debug, Hash)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Spanned<'src, T> {
     /// The spanned T instance
     pub inner: T,
     span: Span<'src>,
 }
 
-// impl<'src, T: Copy> Copy for Spanned<'src, T> {}
+impl<'src, T: Copy> Copy for Spanned<'src, T> {}
 
 impl<'src, T> Spanned<'src, T> {
     /// Adds a span to inner
@@ -113,6 +113,11 @@ impl<'src, T> Spanned<'src, T> {
     /// Evaluates the span of T
     pub const fn span(&self) -> Span<'src> {
         self.span
+    }
+
+    /// Keeps the span while mapping the value
+    pub fn map<U, F: FnOnce(T) -> U>(self, f: F) -> Spanned<'src, U> {
+        Spanned::new(f(self.inner), self.span)
     }
 
     /// Strips the span off of inner
@@ -138,6 +143,8 @@ pub enum Keyword {
     Struct,
     /// Enum definition "enum"
     Enum,
+    /// Variable declaration
+    Decl,
 }
 
 impl TryFrom<&str> for Keyword {
@@ -152,6 +159,7 @@ impl TryFrom<&str> for Keyword {
             "trait" => Ok(Self::Trait),
             "struct" => Ok(Self::Struct),
             "enum" => Ok(Self::Enum),
+            "decl" => Ok(Self::Decl),
             _ => Err(()),
         }
     }
@@ -234,6 +242,8 @@ pub enum Symbol {
     FnAt,
     /// IntoTrait operator '#'
     IntoTrait,
+    /// Statement separator ';'
+    Semi,
 }
 
 /// All possible basic elements of a source file
@@ -350,6 +360,7 @@ impl<'src> Iterator for RawLexer<'src> {
             '@' => symbol!(Symbol::FieldAt),
             '.' => symbol!(Symbol::FnAt),
             '#' => symbol!(Symbol::IntoTrait),
+            ';' => symbol!(Symbol::Semi),
             c if c.is_whitespace() => {
                 self.next().expect("RawLexer did not return End reason!")
             },
