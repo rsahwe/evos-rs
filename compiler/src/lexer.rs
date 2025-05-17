@@ -94,6 +94,33 @@ impl<'src> AddAssign for Span<'src> {
     }
 }
 
+/// A type T associated with a Span
+#[derive(Clone, Copy, Debug, Hash)]
+pub struct Spanned<'src, T> {
+    /// The spanned T instance
+    pub inner: T,
+    span: Span<'src>,
+}
+
+// impl<'src, T: Copy> Copy for Spanned<'src, T> {}
+
+impl<'src, T> Spanned<'src, T> {
+    /// Adds a span to inner
+    pub const fn new(inner: T, span: Span<'src>) -> Self {
+        Spanned { inner, span }
+    }
+    
+    /// Evaluates the span of T
+    pub const fn span(&self) -> Span<'src> {
+        self.span
+    }
+
+    /// Strips the span off of inner
+    pub fn strip(self) -> T {
+        self.inner
+    }
+}
+
 /// All keywords that cannot be used for identifiers
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Keyword {
@@ -225,18 +252,9 @@ pub enum Token<'src> {
 
 impl<'src> Token<'src> {
     /// Include a span with a token
-    pub const fn add_span(self, span: Span<'src>) -> SpannedToken<'src> {
-        SpannedToken { token: self, span }
+    pub const fn add_span(self, span: Span<'src>) -> Spanned<'src, Token<'src>> {
+        Spanned::new(self, span)
     }
-}
-
-/// Token + Span
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct SpannedToken<'src> {
-    /// The token
-    pub token: Token<'src>,
-    /// The associated span
-    pub span: Span<'src>,
 }
 
 /// Gives a reason for why the lexer stopped.
@@ -250,18 +268,9 @@ pub enum LexerError {
 
 impl<'src> LexerError {
     /// Include a span with an error
-    pub const fn add_span(self, span: Span<'src>) -> SpannedLexerError<'src> {
-        SpannedLexerError { error: self, span }
+    pub const fn add_span(self, span: Span<'src>) -> Spanned<'src, LexerError> {
+        Spanned::new(self, span)
     }
-}
-
-/// LexerError + Span
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct SpannedLexerError<'src> {
-    /// The error
-    pub error: LexerError,
-    /// The associated span
-    pub span: Span<'src>,
 }
 
 /// The iterator over tokens.
@@ -279,7 +288,7 @@ impl<'src> RawLexer<'src> {
 }
 
 impl<'src> Iterator for RawLexer<'src> {
-    type Item = SpannedToken<'src>;
+    type Item = Spanned<'src, Token<'src>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.chars.next();
@@ -373,7 +382,7 @@ impl<'src> Iterator for RawLexer<'src> {
 #[derive(Clone, Debug)]
 pub struct Lexer<'src> {
     inner: Peekable<RawLexer<'src>>,
-    end_error: Option<SpannedLexerError<'src>>,
+    end_error: Option<Spanned<'src, LexerError>>,
 }
 
 impl<'src> Lexer<'src> {
@@ -383,13 +392,13 @@ impl<'src> Lexer<'src> {
     }
 
     /// Get the next token or error
-    pub fn next(&mut self) -> Result<SpannedToken<'src>, SpannedLexerError<'src>> {
+    pub fn next(&mut self) -> Result<Spanned<'src, Token<'src>>, Spanned<'src, LexerError>> {
         match self.end_error {
             Some(error) => Err(error),
             None => {
                 match self.inner.next() {
                     Some(next) => {
-                        match next.token {
+                        match next.inner {
                             Token::Error(error) => {
                                 self.end_error = Some(error.add_span(next.span));
                                 Err(error.add_span(next.span))
@@ -404,13 +413,13 @@ impl<'src> Lexer<'src> {
     }
 
     /// Peek the next token or error
-    pub fn peek(&mut self) -> Result<SpannedToken<'src>, SpannedLexerError<'src>> {
+    pub fn peek(&mut self) -> Result<Spanned<'src, Token<'src>>, Spanned<'src, LexerError>> {
         match self.end_error {
             Some(error) => Err(error),
             None => {
                 match self.inner.peek() {
                     Some(next) => {
-                        match next.token {
+                        match next.inner {
                             Token::Error(error) => {
                                 self.end_error = Some(error.add_span(next.span));
                                 Err(error.add_span(next.span))
@@ -461,7 +470,7 @@ mod tests {
     fn raw_lexer() {
         macro_rules! test_lexer_output {
             ($input:expr, $output:expr, $msg:expr) => {
-                assert!(RawLexer::new($input).map(|st| dbg!(st.token)).eq($output), $msg)
+                assert!(RawLexer::new($input).map(|st| dbg!(st.strip())).eq($output), $msg)
             };
         }
 
