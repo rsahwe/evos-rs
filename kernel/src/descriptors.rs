@@ -1,5 +1,5 @@
 use spin::{Mutex, MutexGuard};
-use x86_64::{instructions::tables::load_tss, registers::segmentation::{Segment, CS, DS, SS}, structures::{gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector}, tss::TaskStateSegment}, PrivilegeLevel, VirtAddr};
+use x86_64::{instructions::tables::load_tss, registers::segmentation::{Segment, CS, DS, ES, FS, GS, SS}, structures::{gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector}, tss::TaskStateSegment}, PrivilegeLevel, VirtAddr};
 
 use crate::mem::STACK_SIZE;
 
@@ -45,6 +45,9 @@ pub fn init() {
     // SAFETY: SEGMENTS ARE VALID AND LOADED
     unsafe {
         DS::set_reg(KDS);
+        ES::set_reg(KDS);
+        FS::set_reg(KDS);
+        GS::set_reg(KDS);
         SS::set_reg(KDS);
         CS::set_reg(KCS);
     }
