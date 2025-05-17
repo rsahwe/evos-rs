@@ -1,4 +1,4 @@
-use core::{alloc::{GlobalAlloc, Layout}, marker::PhantomData, mem::MaybeUninit, ops::{Deref, DerefMut}, ptr::NonNull};
+use core::{alloc::{GlobalAlloc, Layout}, marker::PhantomData, mem::{ManuallyDrop, MaybeUninit}, ops::{Deref, DerefMut}, ptr::NonNull};
 
 use bitvec::array::BitArray;
 use linked_list_allocator::Heap;
@@ -65,8 +65,20 @@ impl<T> VirtFrame<T> {
     }
 
     fn into_inner(self) -> T {
+        let this = ManuallyDrop::new(self);
         // SAFETY: FRAME IS MAPPED, ALLOCATED AND LARGE ENOUGH
-        unsafe { VirtAddr::new(self.phys.start_address().as_u64() + OFFSET).as_mut_ptr::<T>().read() }
+        unsafe { VirtAddr::new(this.phys.start_address().as_u64() + OFFSET).as_mut_ptr::<T>().read() }
+    }
+
+    #[allow(dead_code)]
+    pub fn leak(self) -> &'static mut T {
+        // SAFETY: FRAME IS MAPPED, ALLOCATED AND LARGE ENOUGH
+        let res = unsafe { &mut *VirtAddr::new(self.phys.start_address().as_u64() + OFFSET).as_mut_ptr::<T>() };
+
+        // Make sure inner does not get dropped and the page does not get deallocated
+        let _drop = ManuallyDrop::new(self);
+
+        res
     }
 }
 
@@ -81,6 +93,9 @@ where
 
 impl<T> Drop for VirtFrame<T> {
     fn drop(&mut self) {
+        // Incase T has drop glue
+        // SAFETY: FRAME IS MAPPED, ALLOCATED AND LARGE ENOUGH
+        let _drop = unsafe { VirtAddr::new(self.phys.start_address().as_u64() + OFFSET).as_mut_ptr::<T>().read_volatile() };
         // SAFETY: ALLOCATED BY THIS ALLOCATOR
         unsafe { pfree!(self.phys) };
     }
