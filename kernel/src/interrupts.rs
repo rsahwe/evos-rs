@@ -1,7 +1,7 @@
 use core::{mem::transmute, ops::RangeInclusive};
 
 use spin::{Mutex, MutexGuard};
-use x86_64::{instructions::{interrupts::enable, port::Port}, registers::control::Cr2, set_general_handler, structures::idt::{EntryOptions, ExceptionVector, InterruptDescriptorTable, InterruptStackFrame}, PrivilegeLevel};
+use x86_64::{instructions::{interrupts::enable, port::Port}, registers::control::Cr2, set_general_handler, structures::{idt::{EntryOptions, ExceptionVector, InterruptDescriptorTable, InterruptStackFrame}, paging::{PageSize, Size4KiB}}, PrivilegeLevel};
 
 use crate::{error, modules::ps2::ps2_keyboard_interrupt, time::Time};
 
@@ -188,6 +188,11 @@ pub fn init() {
         };
     }
     
+    change_entry_options!(page_fault, |options: &mut EntryOptions| {
+        // SAFETY: INDEX IS VALID
+        unsafe { options.set_stack_index(1) };// To catch stackoverflows into the guard page
+    });
+
     change_entry_options!(double_fault, |options: &mut EntryOptions| {
         // SAFETY: INDEX IS VALID
         unsafe { options.set_stack_index(0) };
@@ -208,7 +213,12 @@ fn handler_func(frame: InterruptStackFrame, index: u8, error_code: Option<u64>) 
         match ExceptionVector::try_from(index) {
             Ok(vector) => {
                 match vector {
-                    ExceptionVector::Page => panic!("kernel page fault e {} with frame:\n{:#?}\nand addr: {:?}", error_code.unwrap(), frame, Cr2::read()),
+                    ExceptionVector::Page => {
+                        if let Ok(fault_addr) = Cr2::read() && frame.stack_pointer.as_u64().wrapping_sub(fault_addr.as_u64()) <= Size4KiB::SIZE {
+                            panic!("Kernel STACKOVERFLOW at rip 0x{:016x} detected!", frame.instruction_pointer);
+                        }
+                        panic!("kernel page fault e {} with frame:\n{:#?}\nand addr: {:?}", error_code.unwrap(), frame, Cr2::read())
+                    },
                     _ => unreachable!("Unexpected interrupt with error {:?} {:?} with frame:\n{:#?}", error_code, vector, frame),//Should be unreachable right?
                 }
             },

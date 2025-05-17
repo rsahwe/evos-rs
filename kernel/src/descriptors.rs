@@ -21,6 +21,11 @@ pub fn init() {
 
         VirtAddr::from_ptr(&raw const STACK) + STACK_SIZE as u64
     };
+    tss.interrupt_stack_table[1] = {
+        static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+
+        VirtAddr::from_ptr(&raw const STACK) + STACK_SIZE as u64
+    };
     tss.privilege_stack_table[0] = {
         static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
