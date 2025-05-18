@@ -1,4 +1,4 @@
-use core::{alloc::{GlobalAlloc, Layout}, marker::PhantomData, mem::{ManuallyDrop, MaybeUninit}, ops::{Deref, DerefMut}, ptr::NonNull};
+use core::{alloc::{GlobalAlloc, Layout}, fmt::Debug, marker::PhantomData, mem::{ManuallyDrop, MaybeUninit}, ops::{Deref, DerefMut}, ptr::NonNull};
 
 use bitvec::array::BitArray;
 use linked_list_allocator::Heap;
@@ -88,6 +88,20 @@ where
 {
     fn default() -> Self {
         Self::new_default()
+    }
+}
+
+impl<T: Clone> Clone for VirtFrame<T> {
+    fn clone(&self) -> Self {
+        Self::new(<T as Clone>::clone(self))
+    }
+}
+
+impl<T: Debug> Debug for VirtFrame<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("VirtFrame")
+            .field(self.deref())
+            .finish()
     }
 }
 
