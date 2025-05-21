@@ -71,4 +71,10 @@ impl Iterator for InitRamFileIterator {
             Some((str::from_utf8(&self.raw[name_offset..name_offset + name_len]).expect("InitRamFs file name invalid!!!"), &self.raw[file_offset..file_offset + file_len]))
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.file_count - self.current_file, Some(self.file_count - self.current_file))
+    }
 }
+
+impl ExactSizeIterator for InitRamFileIterator {}

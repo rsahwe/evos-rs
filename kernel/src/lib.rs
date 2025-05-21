@@ -28,7 +28,7 @@ pub fn init(boot_info: &'static mut BootInfo) {
     log::init(&mut boot_info.framebuffer);
     info!("Logging initialized");
     initramfs::init(boot_info.ramdisk_addr.into_option().expect("Ramdisk missing!!!"), boot_info.ramdisk_len);
-    info!("InitRamFs initialized with {} files", initramfs::InitRamFs::iter().count());
+    info!("InitRamFs initialized with {} files", initramfs::InitRamFs::iter().len());
     descriptors::init();
     info!("GDT & TSS initialized");
     interrupts::init();
