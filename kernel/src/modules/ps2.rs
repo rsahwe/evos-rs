@@ -4,7 +4,7 @@ use pc_keyboard::{HandleControl, Keyboard, ScancodeSet1};
 use spin::Mutex;
 use x86_64::instructions::port::{Port, PortReadOnly, PortWriteOnly};
 
-use crate::debug;
+use crate::{debug, ffi::FFIStr};
 
 use super::{Module, ModuleMetadata};
 
@@ -26,11 +26,11 @@ const PS2_CONTROL: (
     PortWriteOnly<u8>
 ) = (Port::new(0x60), PortReadOnly::new(0x64), PortWriteOnly::new(0x64));
 
-fn ps2_metadata() -> ModuleMetadata {
-    ModuleMetadata { name: "ps2", version_string: "0.1.0" }
+extern "C" fn ps2_metadata() -> ModuleMetadata {
+    ModuleMetadata { name: FFIStr::from("ps2"), version_string: FFIStr::from("0.1.0") }
 }
 
-fn ps2_init() -> bool {
+extern "C" fn ps2_init() -> bool {
     //TODO: CHECK
     let mut _ps2_control = PS2_CONTROL;
 

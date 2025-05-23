@@ -21,6 +21,7 @@ pub mod time;
 pub(crate) mod syscalls;
 pub mod modules;
 pub mod initramfs;
+pub mod ffi;
 
 pub use mem::CONFIG as BOOT_CONFIG;
 
