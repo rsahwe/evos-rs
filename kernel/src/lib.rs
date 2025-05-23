@@ -37,6 +37,7 @@ pub fn init(boot_info: &'static mut BootInfo) {
     info!("IDT initialized");
     // SAFETY: MEMORY REGIONS ARE VALID AND LATER UNUSED
     unsafe { mem::init(&mut boot_info.memory_regions) };
+    info!("Memory initialized");
     syscalls::init();
     info!("SYSCALLS initialized");
     let devices = pci::init();

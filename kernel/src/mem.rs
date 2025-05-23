@@ -6,7 +6,7 @@ use spin::Mutex;
 use virt::GAlloc;
 use x86_64::{registers::control::Cr3, structures::paging::{OffsetPageTable, Page, PageSize, PageTable, PageTableFlags, Size4KiB}, VirtAddr};
 
-use crate::info;
+use crate::debug;
 
 pub mod phys;
 pub mod virt;
@@ -168,7 +168,7 @@ pub unsafe fn init(memory_regions: &mut MemoryRegions) {
 
     let size = PHYS_ALLOCATOR.lock().as_ref().unwrap().size();
     let free = PHYS_ALLOCATOR.lock().as_ref().unwrap().free();
-    info!("Memory initialized with 0x{:016x} physical bytes (0x{:016x} used)", size, size - free);
+    debug!("Usable memory 0x{:016x} physical bytes (0x{:016x} used)", size, size - free);
     assert!(free > MIN_PHYSICAL_FREE, "Not enough physical memory 0x{:x} free < 0x{:x} required!!!", free, MIN_PHYSICAL_FREE);
 }
 
