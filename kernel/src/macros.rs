@@ -15,7 +15,7 @@ macro_rules! _println {
 #[macro_export]
 macro_rules! print_init_msg {
     () => {{
-        let _ = $crate::_println!("Evos v{}-{} {} build {} UTC", ::core::env!("CARGO_PKG_VERSION"), ::core::env!("EVOS_BUILD_ID"), ::core::env!("EVOS_BUILD_PROFILE"), ::compile_time::datetime_str!());
+        let _ = $crate::_println!("Evos `{}` v{}-{} {} build {} UTC", $crate::config::KERNEL_ID, ::core::env!("CARGO_PKG_VERSION"), ::core::env!("EVOS_BUILD_ID"), ::core::env!("EVOS_BUILD_PROFILE"), ::compile_time::datetime_str!());
         if ::core::env!("EVOS_BUILD_PROFILE") == "debug" {
             let _ = $crate::_println!("todo.txt says:");
             let _ = $crate::_println!("{}", $crate::initramfs::InitRamFs::open_text_file("todo.txt").unwrap_or(Ok("- Make todo.txt")).unwrap_or("- Make todo.txt"));

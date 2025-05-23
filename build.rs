@@ -1,4 +1,4 @@
-use std::{fs::OpenOptions, io::{Read, Write}, path::PathBuf};
+use std::{fs::{self, OpenOptions}, io::{Read, Write}, path::PathBuf};
 
 fn make_static_disk_from_folder<'a>(folder: impl Into<&'a str>) -> Box<[u8]> {
     let folder_name = folder.into();
@@ -51,6 +51,8 @@ fn main() {
 
     let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
     let kernel = PathBuf::from(std::env::var_os("CARGO_BIN_FILE_EVKRNL_evkrnl").unwrap());
+
+    //TODO: ATTACH KERNEL ID TO KERNEL FILE SYSTEM/PARTITION/DISK
 
     let file = make_static_disk_from_folder("ramdisk");
     let ramdisk_name = out_dir.join("ramdisk");
