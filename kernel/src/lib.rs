@@ -22,6 +22,7 @@ pub(crate) mod syscalls;
 pub mod modules;
 pub mod initramfs;
 pub mod ffi;
+pub mod pci;
 
 pub use mem::CONFIG as BOOT_CONFIG;
 
@@ -38,6 +39,8 @@ pub fn init(boot_info: &'static mut BootInfo) {
     unsafe { mem::init(&mut boot_info.memory_regions) };
     syscalls::init();
     info!("SYSCALLS initialized");
+    let devices = pci::init();
+    info!("Pci initialized with {} devices", devices);
     let (successful, total) = modules::init();
     info!("Modules initialized ({}/{})", successful, total);
     info!("Initialization complete!");
