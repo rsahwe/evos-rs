@@ -1,6 +1,8 @@
+use core::slice;
+
 use spin::Mutex;
 
-use crate::{debug, error, ffi::FFIStr, pci::{Bar, Pci, PciDevice}, warn};
+use crate::{debug, error, ffi::FFIStr, pci::{Pci, PciDevice}, warn};
 
 use super::{Module, ModuleMetadata};
 
@@ -21,17 +23,17 @@ extern "C" fn sata_init() -> bool {
 
     match controllers.next() {
         Some(controller) => {
-            debug!("    ///[{}] Found `{}`", sata_metadata(), controller);
+            debug!("    /- [{}] Found `{}`", sata_metadata(), controller);
 
             controllers.for_each(|controller| {
-                debug!("    ///[{}] Ignoring `{}`", sata_metadata(), controller);
+                debug!("    /- [{}] Ignoring `{}`", sata_metadata(), controller);
             });
 
-            *CONTROLLER.lock() = SataController::init(controller);
+            *CONTROLLER.lock() = SataController::new(controller);
             CONTROLLER.lock().is_some()
         },
         None => {
-            warn!("    ///[{}] Missing controller", sata_metadata());
+            warn!("    /- [{}] Missing controller", sata_metadata());
             false
         },
     }
@@ -42,29 +44,103 @@ struct SataController {
 }
 
 impl SataController {
-    fn init(device: PciDevice) -> Option<Self> {
+    fn new(device: PciDevice) -> Option<Self> {
         let bars = device.bars();
 
         let abar = match bars[5] {
             Some(abar) => abar,
             None => {
-                warn!("    ///[{}] Abar not found on device", sata_metadata());
+                warn!("    /- [{}] Abar not found on device", sata_metadata());
                 return None;
             },
         };
 
-        let _abar = match abar.memory_region() {
+        let abar = match abar.memory_region() {
             Some(memory) => {
-                debug!("    ///[{}] Abar in memory at 0x{:016x}-0x{:016x}", sata_metadata(), memory.as_ptr() as usize, memory.as_ptr() as usize + memory.len() - 1);
+                debug!("    /- [{}] Abar in memory at 0x{:016x}-0x{:016x}", sata_metadata(), memory.as_ptr() as usize, memory.as_ptr() as usize + memory.len() - 1);
                 memory
             },
             None => {
-                warn!("    ///[{}] Abar in IO space!!!", sata_metadata());
+                warn!("    /- [{}] Abar in IO space!!!", sata_metadata());
                 return None;
             },
         };
 
-        error!("    ///[{}] TODO: IMPLEMENTATION", sata_metadata());
+        // SAFETY: MEMORY WITH 0 PORTS IS VALID
+        let base_size = unsafe { size_of_val(&*(slice::from_raw_parts(abar.as_ptr(), 0) as *const [u8] as *const Ahci)) };
+        let port_amount = (abar.len() - base_size) / size_of::<AhciPort>();
+        // SAFETY: MEMORY WITH port_amount PORTS IS VALID
+        let mut ahci = unsafe { &mut *(slice::from_raw_parts_mut(abar.as_mut_ptr(), port_amount) as *mut [u8] as *mut Ahci) };
+
+        if ahci.ports.len() != port_amount {
+            warn!("    /- [{}] Generated invalid reference to AHCI struct!!!", sata_metadata());
+            return None;
+        }
+
+        let port_bits = ahci.port_implemented;
+        if ((port_bits << 1) + 1).ilog2() as usize != ahci.ports.len() {
+            if port_bits.ilog2() + 1 != port_bits.count_ones() {
+                warn!("    /- [{}] Ports implemented are not contiguous!!!", sata_metadata());
+            }
+
+            // SAFETY: MEMORY WITH port_bits.count_ones() PORTS IS EXTRA VALID
+            ahci = unsafe { &mut *(slice::from_raw_parts_mut(ahci as *mut Ahci as *mut u8, ((port_bits << 1) + 1).ilog2() as usize) as *mut [u8] as *mut Ahci) };
+
+            if ahci.ports.len() != ((port_bits << 1) + 1).ilog2() as usize {
+                warn!("    /- [{}] Generated invalid reference to AHCI struct!!!", sata_metadata());
+                return None;
+            }
+        }
+
+        debug!("    /- [{}] Got valid reference to AHCI struct with {}({}) ports", sata_metadata(), ahci.port_implemented.count_ones(), ahci.ports.len());
+
+        Self::init(ahci)
+    }
+
+    fn init(ahci: &'static Ahci) -> Option<Self> {
+        error!("    /- [{}] TODO: INIT IMPLEMENTATION", sata_metadata());
+
         None
     }
+}
+
+#[repr(C)]
+struct Ahci {
+    host_capabilities: u32,
+    global_host_control: u32,
+    interrupt_status: u32,
+    port_implemented: u32,
+    version: u32,
+    command_completion_coalescing_control: u32,
+    command_completion_coalescing_ports: u32,
+    enclosure_management_location: u32,
+    enclosure_management_control: u32,
+    host_capabilities_extended: u32,
+    bios_handoff_control_and_status: u32,
+    reserved: [u8; 0xA0-0x2C],
+    vendor_specific: [u8; 0x100-0xA0],
+    ports: [AhciPort],
+}
+
+#[repr(C)]
+struct AhciPort {
+    command_list_base_l: u32,
+    command_list_base_h: u32,
+    fis_base_l: u32,
+    fis_base_h: u32,
+    interrupt_status: u32,
+    interrupt_enable: u32,
+    command_and_status: u32,
+    reserved: u32,
+    task_file_data: u32,
+    signature: u32,
+    sata_status: u32,
+    sata_control: u32,
+    sata_error: u32,
+    sata_active: u32,
+    command_issue: u32,
+    sata_notification: u32,
+    fis_based_switch_control: u32,
+    reserved_again: [u32; 11],
+    vendor_specific: [u32; 4],
 }
