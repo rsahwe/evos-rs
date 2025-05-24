@@ -34,12 +34,17 @@ impl FrameBufferConfig {
 #[derive(Debug, Deserialize)]
 struct ModulesConfig {
     enable_ps2: bool,
+    enable_sata: bool,
 }
 
 impl ModulesConfig {
     fn write_to_file(self, _file: &mut BufWriter<std::fs::File>) -> Result<(), Box<dyn Error>> {
         if self.enable_ps2 {
             println!("cargo::rustc-cfg=module_ps2");
+        }
+
+        if self.enable_sata {
+            println!("cargo::rustc-cfg=module_sata");
         }
 
         Ok(())

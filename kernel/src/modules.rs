@@ -28,10 +28,13 @@ pub struct Module {
 }
 
 pub(crate) mod ps2;
+pub(crate) mod sata;
 
 static KERNEL_MODULES: &[&Module] = &[
     #[cfg(module_ps2)]
     &ps2::PS2_MODULE,
+    #[cfg(module_sata)]
+    &sata::SATA_MODULE,
 ];
 
 static EXTRA_KERNEL_MODULES: Mutex<([MaybeUninit<Module>; 255], usize)> = Mutex::new(([MaybeUninit::uninit(); 255], 0));
@@ -42,7 +45,6 @@ pub(crate) fn init() -> (usize, usize) {
     let mut count = 0;
 
     for module in KERNEL_MODULES {
-        debug!("    Initializing module `{}`:", (module.metadata)());
         let success = (module.init)();
         if success {
             debug!("    Module `{}` load [OK]", (module.metadata)());

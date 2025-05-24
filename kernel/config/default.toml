@@ -5,6 +5,7 @@ font = "basic8x8"
 
 [modules]
 enable_ps2 = true
+enable_sata = false
 
 [keyboard]
 layout = "en"
