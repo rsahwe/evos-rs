@@ -35,7 +35,7 @@ extern "C" fn ps2_init() -> bool {
     let mut _ps2_control = PS2_CONTROL;
 
     KEYBOARD_EXISTS.store(true, Ordering::Relaxed);
-    debug!("    [{}] Keyboard assumed to exist...", ps2_metadata());
+    debug!("    ///[{}] Keyboard assumed to exist...", ps2_metadata());
 
     true
 }
