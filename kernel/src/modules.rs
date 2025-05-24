@@ -4,7 +4,7 @@ use core::{fmt::Display, mem::MaybeUninit};
 
 use spin::Mutex;
 
-use crate::{debug, error, ffi::FFIStr};
+use crate::{debug, error, ffi::FFIStr, warn};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -44,8 +44,12 @@ pub(crate) fn init() -> (usize, usize) {
     for module in KERNEL_MODULES {
         debug!("    Initializing module `{}`:", (module.metadata)());
         let success = (module.init)();
-        debug!("    Module loaded {}", if success { "[OK]" } else { "[ERR]" });
-        count += success as usize;
+        if success {
+            debug!("    Module `{}` load [OK]", (module.metadata)());
+            count += 1;
+        } else {
+            warn!("    Module `{}` load [ERR]", (module.metadata)());
+        }
     }
     
     (count, KERNEL_MODULES.len())
