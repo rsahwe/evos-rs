@@ -1,4 +1,4 @@
-use std::{fs::{self, OpenOptions}, io::{Read, Write}, path::PathBuf};
+use std::{fs::OpenOptions, io::{Read, Write}, path::PathBuf};
 
 fn make_static_disk_from_folder<'a>(folder: impl Into<&'a str>) -> Box<[u8]> {
     let folder_name = folder.into();

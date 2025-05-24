@@ -15,7 +15,6 @@ const CLASS_SUBCLASS_OFFSET: u8     = 0x0a;
 const TIMER_CACHE_LINE_OFFSET: u8   = 0x0c;
 const BIST_HEADER_TYPE_OFFSET: u8   = 0x0e;
 
-//TODO:
 pub struct Pci;
 
 impl Pci {
@@ -27,6 +26,56 @@ impl Pci {
 
         // SAFETY: SAFE
         ((unsafe { Port::<u32>::new(0xcfc).read() } >> ((offset & 2) * 8)) & 0xFFFF) as u16
+    }
+
+    fn write_config(bus: u8, slot: u8, func: u8, offset: u8, value: u16) {
+        let address = ((bus as u32) << 16) | ((slot as u32) << 11) | ((func as u32) << 8) | (offset as u32 & 0xfc) | 0x80000000;
+
+        // SAFETY: SAFE
+        unsafe { Port::new(0xcf8).write(address) };
+
+        let mut port = Port::<u32>::new(0xcfc);
+        let shift = (offset & 2) * 8;
+
+        // SAFETY: SAFE
+        let previous = unsafe { port.read() };
+        // SAFETY: SAFE
+        unsafe { port.write((previous & !(0xFF << shift)) | ((value as u32) << shift)); }
+    }
+
+    fn set_bar_address(bus: u8, slot: u8, func: u8, bar: u8) -> Port<u32> {
+        let address = ((bus as u32) << 16) | ((slot as u32) << 11) | ((func as u32) << 8) | ((0x10 + (bar as u32 * 4)) & 0xfc) | 0x80000000;
+
+        // SAFETY: SAFE
+        unsafe { Port::new(0xcf8).write(address) };
+
+        Port::new(0xcfc)
+    }
+
+    fn read_bar(bus: u8, slot: u8, func: u8, bar: u8) -> u32 {
+        let mut port = Self::set_bar_address(bus, slot, func, bar);
+
+        // SAFETY: SAFE
+        unsafe { port.read() }
+    }
+
+    fn write_bar(bus: u8, slot: u8, func: u8, bar: u8, value: u32) {
+        let mut port = Self::set_bar_address(bus, slot, func, bar);
+
+        // SAFETY: SAFE
+        unsafe { port.write(value) }
+    }
+
+    fn with_memory_disabled<T, F: FnOnce() -> T>(bus: u8, slot: u8, func: u8, f: F) -> T {
+        let cmd = Self::read_config(bus, slot, func, COMMAND_OFFSET);
+
+        Self::write_config(bus, slot, func, COMMAND_OFFSET, cmd & !0x3);
+
+        let res = f();
+
+        Self::write_config(bus, slot, func, COMMAND_OFFSET, cmd);
+
+        res
     }
 
     fn iter() -> PciDeviceIterator {
@@ -43,6 +92,12 @@ pub struct PciDevice {
     bus: u8,
     slot: u8,
     func: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Bar {
+    Memory { data: usize, len: usize },
+    Port { base: u16, len: usize },
 }
 
 impl PciDevice {
@@ -78,16 +133,77 @@ impl PciDevice {
     pub fn bist(&self) -> u8 {
         (Pci::read_config(self.bus as u8, self.slot, self.func, BIST_HEADER_TYPE_OFFSET) >> 8) as u8
     }
+
+    pub fn bars(&self) -> [Option<Bar>; 6] {
+        Pci::with_memory_disabled(self.bus, self.slot, self.func, || {
+            let mut bars = [None; 6];
+
+            let mut index = 0;
+
+            while index < 6 {
+                let bar = Pci::read_bar(self.bus, self.slot, self.func, index);
+
+                Pci::write_bar(self.bus, self.slot, self.func, index, !0);
+
+                let size = Pci::read_bar(self.bus, self.slot, self.func, index);
+
+                Pci::write_bar(self.bus, self.slot, self.func, index, bar);
+
+                if bar & 1 == 1 {
+                    if (size & !3) != 0 {
+                        match (bar & !3).try_into() {
+                            Ok(portbase) => bars[index as usize] = Some(Bar::Port { base: portbase, len: (!(size & !3) + 1) as usize }),
+                            Err(err) => error!("PCI Bar IO base too high: {}", err),
+                        }
+                    }
+                } else {
+                    if (size & !0xf) != 0 {
+                        if bar & 0b110 == 0b100 {
+                            index += 1;
+
+                            if index == 6 {
+                                error!("No slot left for 64-bit bar!");
+                                continue;
+                            }
+
+                            let second_bar = Pci::read_bar(self.bus, self.slot, self.func, index);
+
+                            Pci::write_bar(self.bus, self.slot, self.func, index, !0);
+
+                            let second_size = Pci::read_bar(self.bus, self.slot, self.func, index);
+
+                            Pci::write_bar(self.bus, self.slot, self.func, index, second_bar);
+
+                            let base = ((second_bar as usize) << 32) | (bar as usize);
+                            let size = ((second_size as usize) << 32) | (size as usize);
+
+                            bars[index as usize] = Some(Bar::Memory { data: base & !0xf, len: !(size & !0xf) + 1 })
+                        } else {
+                            bars[index as usize] = Some(Bar::Memory { data: bar as usize & !0xf, len: !(size & !0xf) as usize + 1 })
+                        }
+                    }
+                }
+
+                index += 1;
+            }
+
+            bars
+        })
+    }
 }
 
 impl Display for PciDevice {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "PCI device {:04x}:{:04x} class {:02x}:{:02x} revision 0x{:02x}",
+        write!(f, "PCI device {:04x}:{:04x} class {:02x}:{:02x}(:{:02x}) revision 0x{:02x} at {:02x}:{:02x}.{}",
             self.vendor(),
             self.id(),
             self.class().0,
             self.class().1,
-            self.revision()
+            self.prog_if(),
+            self.revision(),
+            self.bus,
+            self.slot,
+            self.func
         )
     }
 }
