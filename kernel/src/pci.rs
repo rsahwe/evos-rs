@@ -1,9 +1,9 @@
-use core::{fmt::Display, mem::MaybeUninit, sync::atomic::{AtomicBool, Ordering}};
+use core::{fmt::Display, mem::MaybeUninit, slice, sync::atomic::{AtomicBool, Ordering}};
 
 use spin::RwLock;
-use x86_64::instructions::port::Port;
+use x86_64::{instructions::port::Port, structures::port::{PortRead, PortWrite}};
 
-use crate::{debug, error, mem::virt::VirtFrame, warn};
+use crate::{debug, error, mem::{self, virt::VirtFrame}, warn};
 
 const VENDOR_OFFSET: u8             = 0x00;
 const DEVICE_ID_OFFSET: u8          = 0x02;
@@ -205,6 +205,23 @@ impl Display for PciDevice {
             self.slot,
             self.func
         )
+    }
+}
+
+impl Bar {
+    pub fn memory_region(&self) -> Option<&'static mut [u8]> {
+        match self {
+            // SAFETY: ALLOCATED BY BIOS
+            Bar::Memory { data, len } => unsafe { Some(slice::from_raw_parts_mut((data + mem::OFFSET as usize) as *mut u8, *len)) },
+            Bar::Port { base: _, len: _ } => None,
+        }
+    }
+
+    pub fn port<T: PortRead + PortWrite>(&self, offset: u16) -> Option<Result<Port<T>, &'static str>> {
+        match self {
+            Bar::Memory { data: _, len: _ } => None,
+            Bar::Port { base, len } => if offset as usize >= *len { Some(Err("index out of bounds")) } else { Some(Ok(Port::new(*base + offset))) },
+        }
     }
 }
 
