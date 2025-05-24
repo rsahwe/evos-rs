@@ -128,8 +128,8 @@ macro_rules! unmap_clean {
 macro_rules! remap {
     ($page:expr, $frame:expr, $flags:expr) => {
         let (page, frame, flags) = ($page, $frame, $flags);
-        $crate::mem::unmap!(page);
-        $crate::mem::map!(page, frame, flags)
+        $crate::unmap!(page);
+        $crate::map!(page, frame, flags)
     };
 }
 
