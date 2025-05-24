@@ -11,6 +11,7 @@ fn main() {
     } else {
         cmd.arg("-drive").arg(format!("format=raw,file={bios_path}"));
     }
+    cmd.arg("-M").arg("q35");
     let mut child = cmd.spawn().unwrap();
     child.wait().unwrap();
 }
