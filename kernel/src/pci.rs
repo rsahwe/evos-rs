@@ -97,7 +97,7 @@ pub struct PciDevice {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Bar {
     Memory { data: usize, len: usize },
-    Port { base: u16, len: usize },
+    Port { base: u16, len: u16 },
 }
 
 impl PciDevice {
@@ -151,9 +151,9 @@ impl PciDevice {
 
                 if bar & 1 == 1 {
                     if (size & !3) != 0 {
-                        match (bar & !3).try_into() {
-                            Ok(portbase) => bars[index as usize] = Some(Bar::Port { base: portbase, len: (!(size & !3) + 1) as usize }),
-                            Err(err) => error!("PCI Bar IO base too high: {}", err),
+                        match ((bar & !3).try_into(), (!(size & !3) + 1).try_into()) {
+                            (Ok(portbase), Ok(size)) => bars[index as usize] = Some(Bar::Port { base: portbase, len: size }),
+                            (_, _) => error!("PCI Bar IO base or size too high"),
                         }
                     }
                 } else {
@@ -220,7 +220,7 @@ impl Bar {
     pub fn port<T: PortRead + PortWrite>(&self, offset: u16) -> Option<Result<Port<T>, &'static str>> {
         match self {
             Bar::Memory { data: _, len: _ } => None,
-            Bar::Port { base, len } => if offset as usize >= *len { Some(Err("index out of bounds")) } else { Some(Ok(Port::new(*base + offset))) },
+            Bar::Port { base, len } => if offset >= *len { Some(Err("index out of bounds")) } else { Some(Ok(Port::new(*base + offset))) },
         }
     }
 }

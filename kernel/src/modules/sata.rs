@@ -1,6 +1,6 @@
 use spin::Mutex;
 
-use crate::{debug, ffi::FFIStr, pci::{Pci, PciDevice}, warn};
+use crate::{debug, error, ffi::FFIStr, pci::{Bar, Pci, PciDevice}, warn};
 
 use super::{Module, ModuleMetadata};
 
@@ -16,38 +16,19 @@ extern "C" fn sata_metadata() -> ModuleMetadata {
 }
 
 extern "C" fn sata_init() -> bool {
-    let mut controllers = Pci::own_by_class(0x01, 0x01).chain(Pci::own_by_class(0x01, 0x06));
+    let mut controllers = Pci::own_by_class(0x01, 0x06)
+        .filter(|device| device.prog_if() == 0x1);
 
     match controllers.next() {
-        Some(mut controller) => {
+        Some(controller) => {
             debug!("    ///[{}] Found `{}`", sata_metadata(), controller);
 
-            if controller.class().1 == 0x01 {
-                let mut controllers = controllers.skip_while(|device| {
-                    debug!("    ///[{}] Ignoring `{}`", sata_metadata(), device);
-                    device.class().1 == 0x01
-                });
+            controllers.for_each(|controller| {
+                debug!("    ///[{}] Ignoring `{}`", sata_metadata(), controller);
+            });
 
-                match controllers.next() {
-                    Some(sata_controller) => {
-                        controller = sata_controller;
-                        debug!("    ///[{}] Found `{}` and using it instead", sata_metadata(), controller);
-                    },
-                    None => (),
-                }
-
-                controllers.for_each(|controller| {
-                    debug!("    ///[{}] Ignoring `{}`", sata_metadata(), controller);
-                });
-            } else {
-                controllers.for_each(|controller| {
-                    debug!("    ///[{}] Ignoring `{}`", sata_metadata(), controller);
-                });
-            }
-
-            *CONTROLLER.lock() = Some(SataController::init(controller));
-            warn!("    ///[{}] TODO: IMPLEMENTATION", sata_metadata());
-            false
+            *CONTROLLER.lock() = SataController::init(controller);
+            CONTROLLER.lock().is_some()
         },
         None => {
             warn!("    ///[{}] Missing controller", sata_metadata());
@@ -61,7 +42,29 @@ struct SataController {
 }
 
 impl SataController {
-    fn init(_device: PciDevice) -> Self {
-        todo!("Sata init")
+    fn init(device: PciDevice) -> Option<Self> {
+        let bars = device.bars();
+
+        let abar = match bars[5] {
+            Some(abar) => abar,
+            None => {
+                warn!("    ///[{}] Abar not found on device", sata_metadata());
+                return None;
+            },
+        };
+
+        let _abar = match abar.memory_region() {
+            Some(memory) => {
+                debug!("    ///[{}] Abar in memory at 0x{:016x}-0x{:016x}", sata_metadata(), memory.as_ptr() as usize, memory.as_ptr() as usize + memory.len() - 1);
+                memory
+            },
+            None => {
+                warn!("    ///[{}] Abar in IO space!!!", sata_metadata());
+                return None;
+            },
+        };
+
+        error!("    ///[{}] TODO: IMPLEMENTATION", sata_metadata());
+        None
     }
 }
