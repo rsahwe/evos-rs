@@ -47,7 +47,7 @@ macro_rules! palloc_loop {
             // SAFETY: STILL LOCKED
             let phys = unsafe { &mut *phys_raw };
 
-            let frame = phys.allocate_frame().expect("Physical OOM!!!");
+            let frame = ::x86_64::structures::paging::FrameAllocator::allocate_frame(phys).expect("Physical OOM!!!");
 
             closure(phys, frame, el);
         }
@@ -57,7 +57,7 @@ macro_rules! palloc_loop {
 #[macro_export]
 macro_rules! pfree {
     ($frame:expr) => {
-        $crate::mem::PHYS_ALLOCATOR.lock().as_mut().expect("Allocator missing!!!").deallocate_frame($frame)
+        ::x86_64::structures::paging::FrameDeallocator::deallocate_frame($crate::mem::PHYS_ALLOCATOR.lock().as_mut().expect("Allocator missing!!!"), $frame)
     };
 }
 

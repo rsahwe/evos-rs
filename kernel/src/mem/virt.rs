@@ -3,7 +3,7 @@ use core::{alloc::{GlobalAlloc, Layout}, fmt::Debug, marker::PhantomData, mem::{
 use bitvec::array::BitArray;
 use linked_list_allocator::Heap;
 use spin::Mutex;
-use x86_64::{structures::paging::{FrameAllocator, FrameDeallocator, Page, PageSize, PageTableFlags, PhysFrame, Size4KiB}, VirtAddr};
+use x86_64::{structures::paging::{Page, PageSize, PageTableFlags, PhysFrame, Size4KiB}, VirtAddr};
 
 use crate::{map_range, palloc, pfree};
 
