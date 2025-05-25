@@ -1,8 +1,9 @@
-use core::slice;
+use core::{alloc::{GlobalAlloc, Layout}, cmp::max, slice};
 
 use spin::Mutex;
+use x86_64::{structures::paging::{Mapper, Page, PageSize, PageTableFlags, PhysFrame, Size4KiB}, PhysAddr, VirtAddr};
 
-use crate::{debug, error, ffi::FFIStr, pci::{Pci, PciDevice}, warn};
+use crate::{debug, error, ffi::FFIStr, mem::{self, VIRT_ALLOCATOR, VIRT_MAPPER}, pci::{Pci, PciDevice}, pfree, remap, warn};
 
 use super::{Module, ModuleMetadata};
 
@@ -45,6 +46,13 @@ struct SataController {
 
 impl SataController {
     fn new(device: PciDevice) -> Option<Self> {
+        if device.irq() == 0xff {
+            warn!("    /- [{}] SATA IRQ not configured!!!", sata_metadata());
+            return None;
+        }
+
+        device.set_command((device.command() | 0x2) & !(1 << 10));// Memory enable and not interrupt disable
+
         let bars = device.bars();
 
         let abar = match bars[5] {
@@ -55,7 +63,7 @@ impl SataController {
             },
         };
 
-        let abar = match abar.memory_region() {
+        let mut abar = match abar.memory_region() {
             Some(memory) => {
                 debug!("    /- [{}] Abar in memory at 0x{:016x}-0x{:016x}", sata_metadata(), memory.as_ptr() as usize, memory.as_ptr() as usize + memory.len() - 1);
                 memory
@@ -65,6 +73,22 @@ impl SataController {
                 return None;
             },
         };
+
+        //TODO: BETTER MAPPING CODE
+        {
+            let region_size = max(abar.len(), Size4KiB::SIZE as usize * 2);
+            let region = unsafe { VIRT_ALLOCATOR.alloc(Layout::from_size_align(region_size, Size4KiB::SIZE as usize).unwrap()) };
+
+            for page in Page::<Size4KiB>::range(Page::containing_address(VirtAddr::from_ptr(region)), Page::containing_address(VirtAddr::from_ptr(region.wrapping_add(region_size)))) {
+                let phys = PhysFrame::containing_address(PhysAddr::new(page.start_address().as_u64() - region as u64 + abar.as_ptr() as u64 - mem::OFFSET));
+                // SAFETY: VALID
+                unsafe { pfree!(VIRT_MAPPER.lock().as_mut().unwrap().translate_page(page).expect("Virtual allocator mapped incorrectly")) };
+                remap!(page, phys, PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_CACHE | PageTableFlags::GLOBAL);
+            }
+
+            // SAFETY: VALID
+            abar = unsafe { slice::from_raw_parts_mut(region, abar.len()) };
+        }
 
         // SAFETY: MEMORY WITH 0 PORTS IS VALID
         let base_size = unsafe { size_of_val(&*(slice::from_raw_parts(abar.as_ptr(), 0) as *const [u8] as *const Ahci)) };
@@ -77,6 +101,7 @@ impl SataController {
             return None;
         }
 
+        //TODO: REPLACE ILOG2 AS IT PANICS IF THE HIGHEST BIT IS SET
         let port_bits = ahci.port_implemented;
         if ((port_bits << 1) + 1).ilog2() as usize != ahci.ports.len() {
             if port_bits.ilog2() + 1 != port_bits.count_ones() {
@@ -92,12 +117,18 @@ impl SataController {
             }
         }
 
+        if ahci.global_host_control.ilog2() != usize::MAX.ilog2() {
+            warn!("    /- [{}] Ahci is in IDE mode", sata_metadata());
+        }
+
         debug!("    /- [{}] Got valid reference to AHCI struct with {}({}) ports", sata_metadata(), ahci.port_implemented.count_ones(), ahci.ports.len());
 
-        Self::init(ahci)
+        Self::init(ahci, device.irq())
     }
 
-    fn init(ahci: &'static Ahci) -> Option<Self> {
+    fn init(ahci: &'static mut Ahci, irq: u8) -> Option<Self> {
+        ahci.global_host_control &= !0x2;//Interrupt enable
+
         error!("    /- [{}] TODO: INIT IMPLEMENTATION", sata_metadata());
 
         None

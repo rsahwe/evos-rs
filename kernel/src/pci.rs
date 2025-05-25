@@ -14,6 +14,7 @@ const CLASS_SUBCLASS_OFFSET: u8     = 0x0a;
 #[allow(unused)]
 const TIMER_CACHE_LINE_OFFSET: u8   = 0x0c;
 const BIST_HEADER_TYPE_OFFSET: u8   = 0x0e;
+const INTERRUPT_OFFSET: u8          = 0x3c;
 
 pub struct Pci;
 
@@ -113,6 +114,10 @@ impl PciDevice {
         Pci::read_config(self.bus, self.slot, self.func, COMMAND_OFFSET)
     }
 
+    pub fn set_command(&self, command: u16) {
+        Pci::write_config(self.bus, self.slot, self.func, COMMAND_OFFSET, command)
+    }
+
     pub fn status(&self) -> u16 {
         Pci::read_config(self.bus, self.slot, self.func, STATUS_OFFSET)
     }
@@ -189,6 +194,10 @@ impl PciDevice {
 
             bars
         })
+    }
+
+    pub fn irq(&self) -> u8 {
+        (Pci::read_config(self.bus, self.slot, self.func, INTERRUPT_OFFSET) & 0xFF) as u8
     }
 }
 
