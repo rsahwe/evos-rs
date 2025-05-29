@@ -117,7 +117,7 @@ impl SataController {
             }
         }
 
-        if ahci.global_host_control.ilog2() != usize::MAX.ilog2() {
+        if ahci.global_host_control.ilog2() != u32::MAX.ilog2() {
             warn!("    /- [{}] Ahci is in IDE mode", sata_metadata());
         }
 
