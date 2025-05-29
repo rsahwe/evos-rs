@@ -23,8 +23,8 @@ impl Display for ModuleMetadata {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Module {
-    metadata: extern "C" fn() -> ModuleMetadata,
-    init: extern "C" fn() -> bool,
+    metadata: extern "sysv64" fn() -> ModuleMetadata,
+    init: extern "sysv64" fn() -> bool,
 }
 
 pub(crate) mod ps2;

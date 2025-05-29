@@ -14,11 +14,11 @@ pub(super) static SATA_MODULE: Module = Module {
 
 static CONTROLLER: Mutex<Option<SataController>> = Mutex::new(None);
 
-extern "C" fn sata_metadata() -> ModuleMetadata {
+extern "sysv64" fn sata_metadata() -> ModuleMetadata {
     ModuleMetadata { name: FFIStr::from("sata"), version_string: FFIStr::from("0.1.0") }
 }
 
-extern "C" fn sata_init() -> bool {
+extern "sysv64" fn sata_init() -> bool {
     let mut controllers = Pci::own_by_class(0x01, 0x06)
         .filter(|device| device.prog_if() == 0x1);
 

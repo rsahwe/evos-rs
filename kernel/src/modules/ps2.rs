@@ -26,11 +26,11 @@ const PS2_CONTROL: (
     PortWriteOnly<u8>
 ) = (Port::new(0x60), PortReadOnly::new(0x64), PortWriteOnly::new(0x64));
 
-extern "C" fn ps2_metadata() -> ModuleMetadata {
+extern "sysv64" fn ps2_metadata() -> ModuleMetadata {
     ModuleMetadata { name: FFIStr::from("ps2"), version_string: FFIStr::from("0.1.0") }
 }
 
-extern "C" fn ps2_init() -> bool {
+extern "sysv64" fn ps2_init() -> bool {
     //TODO: CHECK
     let mut _ps2_control = PS2_CONTROL;
 
