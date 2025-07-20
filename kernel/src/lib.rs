@@ -23,6 +23,7 @@ pub mod modules;
 pub mod initramfs;
 pub mod ffi;
 pub mod pci;
+pub mod future;
 
 pub use mem::CONFIG as BOOT_CONFIG;
 
