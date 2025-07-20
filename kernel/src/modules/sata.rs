@@ -3,7 +3,7 @@ use core::{alloc::{GlobalAlloc, Layout}, cmp::max, slice};
 use spin::Mutex;
 use x86_64::{structures::paging::{Mapper, Page, PageSize, PageTableFlags, PhysFrame, Size4KiB}, PhysAddr, VirtAddr};
 
-use crate::{debug, error, ffi::FFIStr, mem::{self, VIRT_ALLOCATOR, VIRT_MAPPER}, pci::{Pci, PciDevice}, pfree, remap, warn};
+use crate::{debug, error, ffi::FFIStr, interrupts::{PicEnd, PIC}, mem::{self, VIRT_ALLOCATOR, VIRT_MAPPER}, pci::{Pci, PciDevice}, pfree, remap, time::Time, warn};
 
 use super::{Module, ModuleMetadata};
 
@@ -40,7 +40,12 @@ extern "sysv64" fn sata_init() -> bool {
     }
 }
 
+fn sata_interrupt_handler(_pic_guard: PicEnd) {
+    todo!("Sata interrupt called!");
+}
+
 struct SataController {
+    ahci: &'static mut Ahci,
     //TODO:
 }
 
@@ -129,7 +134,42 @@ impl SataController {
     fn init(ahci: &'static mut Ahci, irq: u8) -> Option<Self> {
         ahci.global_host_control &= !0x2;//Interrupt enable
 
-        error!("    /- [{}] TODO: INIT IMPLEMENTATION", sata_metadata());
+        let saved_capabilities = ahci.host_capabilities & ((1 << 28) | (1 << 27) | (1 << 17) | (1 << 6) | (1 << 5));
+        let saved_ports_implemented = ahci.port_implemented;
+
+        ahci.global_host_control |= 1 << 31;
+        ahci.flush_writes();
+        ahci.global_host_control |= 1;
+        ahci.flush_writes();
+
+        if !Time::timeout_poll_s(1, || {
+            ahci.global_host_control & 1 == 0
+        }) {
+            error!("    /- [{}] Ahci Reset timed out after 1 second!!!", sata_metadata());
+            return None;
+        }
+
+        ahci.global_host_control |= 1;
+        ahci.flush_writes();
+        ahci.host_capabilities |= saved_capabilities;
+        ahci.port_implemented |= saved_ports_implemented;
+        ahci.flush_writes();
+
+        PIC.lock().set_override(&(sata_interrupt_handler as fn(PicEnd)), irq);
+
+        //TODO: PORTS INIT1
+        error!("    /- [{}] TODO: PORTS INIT1 IMPLEMENTATION", sata_metadata());
+
+        let interrupts_pending = ahci.interrupt_status;
+        ahci.interrupt_status = interrupts_pending;
+        ahci.flush_writes();
+
+        // enable interrupts
+        ahci.global_host_control |= 0x2;//Interrupt enable
+        ahci.flush_writes();
+
+        //TODO: PORTS INIT2
+        error!("    /- [{}] TODO: PORTS INIT2 IMPLEMENTATION", sata_metadata());
 
         None
     }
@@ -151,6 +191,14 @@ struct Ahci {
     reserved: [u8; 0xA0-0x2C],
     vendor_specific: [u8; 0x100-0xA0],
     ports: [AhciPort],
+}
+
+impl Ahci {
+    fn flush_writes(&mut self) {
+        let ptr = (&mut self.global_host_control) as *mut u32;
+        // SAFETY: VALID
+        unsafe { ptr.read_volatile() };
+    }
 }
 
 #[repr(C)]

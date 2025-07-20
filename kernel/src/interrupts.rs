@@ -8,14 +8,15 @@ use crate::{error, modules::ps2::ps2_keyboard_interrupt, time::Time};
 static HANDLER: Mutex<InterruptDescriptorTable> = Mutex::new(InterruptDescriptorTable::new());
 
 // SAFETY: ONLY USED HERE
-static PIC: Mutex<Pic> = Mutex::new(unsafe { Pic::new() });
+pub static PIC: Mutex<Pic> = Mutex::new(unsafe { Pic::new() });
 
-struct Pic {
+pub struct Pic {
     first_command: Port<u8>,
     first_data: Port<u8>,
     second_command: Port<u8>,
     second_data: Port<u8>,
     io_wait: Port<u8>,
+    irq_overrides: [Option<&'static fn(PicEnd)>; 16],
 }
 
 impl Pic {
@@ -29,6 +30,7 @@ impl Pic {
             second_command: Port::new(0xA0),
             second_data: Port::new(0xA1),
             io_wait: Port::new(0x80),
+            irq_overrides: [None; 16],
         }
     }
 
@@ -68,6 +70,14 @@ impl Pic {
         }
     }
 
+    pub fn set_override(&mut self, handler: &'static fn(PicEnd), irq: u8) {
+        if irq > 15 {
+            panic!("Trying to install irq handler for irq {}", irq)
+        }
+
+        self.irq_overrides[irq as usize] = Some(handler);
+    }
+
     fn io_wait(&mut self) {
         // SAFETY: VALID
         unsafe { self.io_wait.write(0) };
@@ -85,6 +95,10 @@ impl Pic {
     unsafe fn interrupt(&mut self, irq: PicInterrupt, _kernel: bool) {
         // SAFETY: VALID ONLY HERE
         let pic_guard = unsafe { PicEnd::new(irq) };
+
+        if let Some(handler) = self.irq_overrides[u8::from(irq) as usize] {
+            return (handler)(pic_guard);
+        }
 
         match irq {
             PicInterrupt::Timer => Time::tick_step(pic_guard),//TODO: SCHEDULE? MAYBE CHECK FOR INTERRUPT IN INTERRUPT WITH LOCK?
