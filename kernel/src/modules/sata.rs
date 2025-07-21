@@ -3,7 +3,7 @@ use core::{alloc::{GlobalAlloc, Layout}, cmp::max, slice};
 use spin::Mutex;
 use x86_64::{structures::paging::{Mapper, Page, PageSize, PageTableFlags, PhysFrame, Size4KiB}, PhysAddr, VirtAddr};
 
-use crate::{debug, error, ffi::FFIStr, interrupts::{PicEnd, PIC}, mem::{self, VIRT_ALLOCATOR, VIRT_MAPPER}, pci::{Pci, PciDevice}, pfree, remap, time::Time, warn};
+use crate::{ffi::FFIStr, interrupts::{PicEnd, PIC}, mem::{self, VIRT_ALLOCATOR, VIRT_MAPPER}, pci::{Pci, PciDevice}, pfree, remap, time::Time};
 
 use super::{Module, ModuleMetadata};
 
@@ -18,23 +18,41 @@ extern "sysv64" fn sata_metadata() -> ModuleMetadata {
     ModuleMetadata { name: FFIStr::from("sata"), version_string: FFIStr::from("0.1.0") }
 }
 
+macro_rules! debug {
+    ($($arg:tt)*) => {
+        $crate::debug!("    /- [{}] {}", sata_metadata(), ::core::format_args!($($arg)*))
+    };
+}
+
+macro_rules! warn {
+    ($($arg:tt)*) => {
+        $crate::warn!("    /- [{}] {}", sata_metadata(), ::core::format_args!($($arg)*))
+    };
+}
+
+macro_rules! error {
+    ($($arg:tt)*) => {
+        $crate::error!("    /- [{}] {}", sata_metadata(), ::core::format_args!($($arg)*))
+    };
+}
+
 extern "sysv64" fn sata_init() -> bool {
     let mut controllers = Pci::own_by_class(0x01, 0x06)
         .filter(|device| device.prog_if() == 0x1);
 
     match controllers.next() {
         Some(controller) => {
-            debug!("    /- [{}] Found `{}`", sata_metadata(), controller);
+            debug!("Found `{}`", controller);
 
             controllers.for_each(|controller| {
-                debug!("    /- [{}] Ignoring `{}`", sata_metadata(), controller);
+                debug!("Ignoring `{}`", controller);
             });
 
             *CONTROLLER.lock() = SataController::new(controller);
             CONTROLLER.lock().is_some()
         },
         None => {
-            warn!("    /- [{}] Missing controller", sata_metadata());
+            warn!("Missing controller");
             false
         },
     }
@@ -52,7 +70,7 @@ struct SataController {
 impl SataController {
     fn new(device: PciDevice) -> Option<Self> {
         if device.irq() == 0xff {
-            warn!("    /- [{}] SATA IRQ not configured!!!", sata_metadata());
+            warn!("SATA IRQ not configured!!!");
             return None;
         }
 
@@ -63,18 +81,18 @@ impl SataController {
         let abar = match bars[5] {
             Some(abar) => abar,
             None => {
-                warn!("    /- [{}] Abar not found on device", sata_metadata());
+                warn!("Abar not found on device");
                 return None;
             },
         };
 
         let mut abar = match abar.memory_region() {
             Some(memory) => {
-                debug!("    /- [{}] Abar in memory at 0x{:016x}-0x{:016x}", sata_metadata(), memory.as_ptr() as usize, memory.as_ptr() as usize + memory.len() - 1);
+                debug!("Abar in memory at 0x{:016x}-0x{:016x}", memory.as_ptr() as usize, memory.as_ptr() as usize + memory.len() - 1);
                 memory
             },
             None => {
-                warn!("    /- [{}] Abar in IO space!!!", sata_metadata());
+                warn!("Abar in IO space!!!");
                 return None;
             },
         };
@@ -102,7 +120,7 @@ impl SataController {
         let mut ahci = unsafe { &mut *(slice::from_raw_parts_mut(abar.as_mut_ptr(), port_amount) as *mut [u8] as *mut Ahci) };
 
         if ahci.ports.len() != port_amount {
-            warn!("    /- [{}] Generated invalid reference to AHCI struct!!!", sata_metadata());
+            warn!("Generated invalid reference to AHCI struct!!!");
             return None;
         }
 
@@ -110,23 +128,23 @@ impl SataController {
         let port_bits = ahci.port_implemented;
         if ((port_bits << 1) + 1).ilog2() as usize != ahci.ports.len() {
             if port_bits.ilog2() + 1 != port_bits.count_ones() {
-                warn!("    /- [{}] Ports implemented are not contiguous!!!", sata_metadata());
+                warn!("Ports implemented are not contiguous!!!");
             }
 
             // SAFETY: MEMORY WITH port_bits.count_ones() PORTS IS EXTRA VALID
             ahci = unsafe { &mut *(slice::from_raw_parts_mut(ahci as *mut Ahci as *mut u8, ((port_bits << 1) + 1).ilog2() as usize) as *mut [u8] as *mut Ahci) };
 
             if ahci.ports.len() != ((port_bits << 1) + 1).ilog2() as usize {
-                warn!("    /- [{}] Generated invalid reference to AHCI struct!!!", sata_metadata());
+                warn!("Generated invalid reference to AHCI struct!!!");
                 return None;
             }
         }
 
         if ahci.global_host_control.ilog2() != u32::MAX.ilog2() {
-            warn!("    /- [{}] Ahci is in IDE mode", sata_metadata());
+            warn!("Ahci is in IDE mode");
         }
 
-        debug!("    /- [{}] Got valid reference to AHCI struct with {}({}) ports", sata_metadata(), ahci.port_implemented.count_ones(), ahci.ports.len());
+        debug!("Got valid reference to AHCI struct with {}({}) ports", ahci.port_implemented.count_ones(), ahci.ports.len());
 
         Self::init(ahci, device.irq())
     }
@@ -145,7 +163,7 @@ impl SataController {
         if !Time::timeout_poll_s(1, || {
             ahci.global_host_control & 1 == 0
         }) {
-            error!("    /- [{}] Ahci Reset timed out after 1 second!!!", sata_metadata());
+            error!("Ahci Reset timed out after 1 second!!!");
             return None;
         }
 
@@ -158,7 +176,7 @@ impl SataController {
         PIC.lock().set_override(&(sata_interrupt_handler as fn(PicEnd)), irq);
 
         //TODO: PORTS INIT1
-        error!("    /- [{}] TODO: PORTS INIT1 IMPLEMENTATION", sata_metadata());
+        error!("TODO: PORTS INIT1 IMPLEMENTATION");
 
         let interrupts_pending = ahci.interrupt_status;
         ahci.interrupt_status = interrupts_pending;
@@ -169,7 +187,7 @@ impl SataController {
         ahci.flush_writes();
 
         //TODO: PORTS INIT2
-        error!("    /- [{}] TODO: PORTS INIT2 IMPLEMENTATION", sata_metadata());
+        error!("TODO: PORTS INIT2 IMPLEMENTATION");
 
         None
     }

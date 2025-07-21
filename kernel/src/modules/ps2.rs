@@ -4,7 +4,7 @@ use pc_keyboard::{HandleControl, Keyboard, ScancodeSet1};
 use spin::Mutex;
 use x86_64::instructions::port::{Port, PortReadOnly, PortWriteOnly};
 
-use crate::{debug, ffi::FFIStr};
+use crate::{ffi::FFIStr};
 
 use super::{Module, ModuleMetadata};
 
@@ -30,12 +30,18 @@ extern "sysv64" fn ps2_metadata() -> ModuleMetadata {
     ModuleMetadata { name: FFIStr::from("ps2"), version_string: FFIStr::from("0.1.0") }
 }
 
+macro_rules! debug {
+    ($($arg:tt)*) => {
+        $crate::debug!("    /- [{}] {}", ps2_metadata(), ::core::format_args!($($arg)*))
+    };
+}
+
 extern "sysv64" fn ps2_init() -> bool {
     //TODO: CHECK
     let mut _ps2_control = PS2_CONTROL;
 
     KEYBOARD_EXISTS.store(true, Ordering::Relaxed);
-    debug!("    /- [{}] Keyboard assumed to exist...", ps2_metadata());
+    debug!("Keyboard assumed to exist...");
 
     true
 }
