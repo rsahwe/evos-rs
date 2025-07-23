@@ -1,7 +1,7 @@
-use core::{arch::naked_asm, fmt::{Debug, Display}, mem::{offset_of, transmute}, ops::Index};
+use core::{arch::naked_asm, fmt::{Debug, Display}, mem::offset_of, ops::Index};
 
 use spin::{Mutex, MutexGuard};
-use x86_64::{instructions::interrupts::{disable, enable}, registers::{control::{Efer, EferFlags}, model_specific::{GsBase, KernelGsBase, LStar, SFMask, Star}, rflags::RFlags, segmentation::{Segment, GS}}, structures::gdt::SegmentSelector, VirtAddr};
+use x86_64::{instructions::interrupts::{disable, enable}, registers::{control::{Efer, EferFlags}, model_specific::{GsBase, KernelGsBase, LStar, SFMask, Star}, rflags::RFlags, segmentation::{Segment, GS}}, VirtAddr};
 
 use crate::{descriptors::{KCS, KDS, UCS, UDS}, mem::STACK_SIZE, debug};
 
@@ -123,9 +123,9 @@ pub extern "sysv64" fn syscall_entry() -> ! {
             kernel_stack = const offset_of!(GSVars, kernel_stack),
             user_stack_scratch = const offset_of!(GSVars, user_stack_scratch),
             syscall_handler = sym syscall_handler,
-            kernel_data_segment = const transmute::<SegmentSelector, u16>(KDS),
-            user_stack_segment = const transmute::<SegmentSelector, u16>(UDS),
-            user_code_segment = const transmute::<SegmentSelector, u16>(UCS),
+            kernel_data_segment = const KDS.0,
+            user_stack_segment = const UDS.0,
+            user_code_segment = const UCS.0,
         )
     }
 }
