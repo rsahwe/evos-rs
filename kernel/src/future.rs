@@ -1,18 +1,16 @@
-use core::{future::poll_fn, hint::spin_loop, pin::{pin, Pin}, task::{Context, Poll, Waker}};
+use core::{future::poll_fn, pin::{pin, Pin}, task::{Context, Poll, Waker}};
 
 const CONTEXT: Context<'_> = Context::from_waker(Waker::noop());
 
 pub fn block_on<F: Future>(f: F) -> F::Output {
     let mut pinned = pin!(f);
+    let mut context = CONTEXT;
 
     loop {
-        #[allow(const_item_mutation)]
-        match pinned.as_mut().poll(&mut CONTEXT) {
+        match pinned.as_mut().poll(&mut context) {
             core::task::Poll::Ready(value) => return value,
             core::task::Poll::Pending => (),
         }
-
-        spin_loop();
     }
 }
 
@@ -36,7 +34,6 @@ pub async fn yield_now() {
     }
 
     YieldNow { yielded: false }.await;
-
 }
 
 pub fn join<A: Future, B: Future>(a: A, b: B) -> impl Future {
