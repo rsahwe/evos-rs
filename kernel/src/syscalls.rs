@@ -133,7 +133,7 @@ pub extern "sysv64" fn syscall_entry() -> ! {
 #[repr(C)]
 struct Combined(SyscallArgs, usize);//WHY?
 
-extern "cdecl" fn syscall_handler(combined: Combined) -> usize {
+extern "sysv64" fn syscall_handler(combined: Combined) -> usize {
     let (args, number) = (combined.0, combined.1);
 
     //TODO:
