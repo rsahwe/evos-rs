@@ -1,4 +1,5 @@
 log_level = "info"
+serial_log = false
 
 [framebuffer]
 font = "basic8x8"

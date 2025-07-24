@@ -74,6 +74,7 @@ struct KernelConfig {
     modules: ModulesConfig,
     keyboard: KeyboardConfig,
     log_level: String,
+    serial_log: bool,
 }
 
 impl KernelConfig {
@@ -94,6 +95,7 @@ impl KernelConfig {
             "critical" => "LogLevel::Critical",
             _ => Err(format!("config::LOG_LEVEL: Invalid level {}", self.log_level))?
         })?;
+        writeln!(file, "pub const SERIAL_LOG: bool = {};", self.serial_log)?;
         writeln!(file, "pub const KERNEL_ID: &'static str = \"{}\";", std::env::var("KERNEL_ID").unwrap_or("DEFAULT".to_string()))?;
 
         Ok(())

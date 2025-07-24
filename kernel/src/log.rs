@@ -4,10 +4,12 @@ use bootloader_api::info::{FrameBuffer, Optional};
 use spin::Mutex;
 use x86_64::instructions::interrupts::without_interrupts;
 
-use crate::{framebuffer::FramePrinter, debug, serial::SerialPrinter, text::format::Color};
+use crate::{config, debug, framebuffer::FramePrinter, serial::SerialPrinter, text::format::Color};
 
 pub fn init(framebuffer: &'static mut Optional<FrameBuffer>) {
-    SerialPrinter::init();
+    if config::SERIAL_LOG {
+        SerialPrinter::init();
+    }
 
     if let Optional::Some(fb) = framebuffer {
         FramePrinter::set_default_static(fb);
@@ -21,7 +23,9 @@ static COLORS: Mutex<(Color, Color)> = Mutex::new((Color(255, 255, 255), Color(0
 
 impl Log {
     pub fn print(args: Arguments) -> fmt::Result {
-        SerialPrinter::print(args)?;
+        if config::SERIAL_LOG {
+            SerialPrinter::print(args)?;
+        }
         FramePrinter::print_default_static(args)
     }
 
