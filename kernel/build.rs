@@ -86,8 +86,8 @@ impl KernelConfig {
         conf_dep!(self, file, modules);
         conf_dep!(self, file, keyboard);
 
-        writeln!(file, "#[derive(PartialOrd, Ord, PartialEq, Eq)]\npub enum LogLevel {{\n    Critical,Error,Warn,Info,Debug\n}}")?;
-        writeln!(file, "pub const LOG_LEVEL: LogLevel = {};", match self.log_level.as_str() {
+        writeln!(file, "#[atomic_enum::atomic_enum]\n#[derive(PartialOrd, Ord, PartialEq, Eq)]\npub enum LogLevel {{\n    Critical,Error,Warn,Info,Debug\n}}")?;
+        writeln!(file, "pub static LOG_LEVEL: AtomicLogLevel = AtomicLogLevel::new({});", match self.log_level.as_str() {
             "debug" => "LogLevel::Debug",
             "info" => "LogLevel::Info",
             "warn" => "LogLevel::Warn",

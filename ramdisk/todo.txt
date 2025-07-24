@@ -2,3 +2,4 @@
 - Vfs
 - Disk stuff
 - Compiler + Executables
+- Move modules to libraries, partially in initramfs, load them through cmdlineor other initramfs file

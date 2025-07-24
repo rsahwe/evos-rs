@@ -24,6 +24,7 @@ pub mod initramfs;
 pub mod ffi;
 pub mod pci;
 pub mod future;
+pub mod cmdline;
 
 pub use mem::CONFIG as BOOT_CONFIG;
 
@@ -32,6 +33,8 @@ pub fn init(boot_info: &'static mut BootInfo) {
     info!("Logging initialized");
     initramfs::init(boot_info.ramdisk_addr.into_option().expect("Ramdisk missing!!!"), boot_info.ramdisk_len);
     info!("InitRamFs initialized with {} files", initramfs::InitRamFs::iter().len());
+    cmdline::init();
+    info!("Loaded kernel parameters");
     descriptors::init();
     info!("GDT & TSS initialized");
     interrupts::init();
