@@ -5,6 +5,7 @@ fn main() {
     let uefi = false;
 
     let mut cmd = std::process::Command::new("qemu-system-x86_64");
+    cmd.arg("-nographic");
     if uefi {
         cmd.arg("-bios").arg(ovmf_prebuilt::ovmf_pure_efi());
         cmd.arg("-drive").arg(format!("format=raw,file={uefi_path}"));

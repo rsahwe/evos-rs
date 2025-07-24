@@ -244,6 +244,9 @@ pub enum Symbol {
     IntoTrait,
     /// Statement separator ';'
     Semi,
+    /// Return type specifier
+    ReturnTypeSpec,
+    //TODO: STRING LITERALS
 }
 
 /// All possible basic elements of a source file
@@ -339,7 +342,7 @@ impl<'src> Iterator for RawLexer<'src> {
 
         Some(match chr {
             '+' => symbol!(Symbol::Add, Symbol::AddAssign, '='),
-            '-' => symbol!(Symbol::Sub, Symbol::SubAssign, '='),
+            '-' => symbol!(Symbol::Sub, Symbol::SubAssign, '=', Symbol::ReturnTypeSpec, '>'),
             '*' => symbol!(Symbol::Star, Symbol::MulAssign, '='),
             '/' => symbol!(Symbol::Div, Symbol::DivAssign, '='),
             '&' => symbol!(Symbol::BitAnd, Symbol::And, '&', Symbol::AndAssign, '='),
