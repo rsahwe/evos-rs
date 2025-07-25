@@ -228,6 +228,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "evc"
+version = "0.1.0"
+
+[[package]]
 name = "evkrnl"
 version = "0.1.0"
 dependencies = [
@@ -253,6 +257,10 @@ dependencies = [
  "evkrnl",
  "ovmf-prebuilt",
 ]
+
+[[package]]
+name = "evx"
+version = "0.1.0"
 
 [[package]]
 name = "fastrand"
