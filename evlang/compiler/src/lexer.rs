@@ -1,6 +1,6 @@
 use core::{iter::Peekable, str::CharIndices};
 
-use crate::{span::{Span, Spanned}, CompileError};
+use crate::{parser::Binding, span::{Span, Spanned}, CompileError};
 
 /// All possible basic elements of a source file
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -23,6 +23,7 @@ pub enum Token<'src> {
     Minus,
     Star,
     Slash,
+    Mod,
     Xor,
     And,
     LShift,
@@ -31,6 +32,37 @@ pub enum Token<'src> {
     Neq, Leq, Geq,
     Semi,
     Comma,
+}
+
+impl<'src> Token<'src> {
+    pub fn prefix_bp(&self) -> Option<((), Binding)> {
+        Some(match *self {
+            Token::Not => ((), Binding::ANot),
+            Token::Minus => ((), Binding::ANegate),
+            _ => return None,
+        })
+    }
+
+    pub fn postfix_bp(&self) -> Option<(Binding, ())> {
+        Some(match *self {
+            Token::ParenOpen => (Binding::PCall, ()),
+            _ => return None,
+        })
+    }
+
+    pub fn infix_bp(&self) -> Option<(Binding, Binding)> {
+        Some(match *self {
+            Token::Plus | Token::Minus => (Binding::LPlMin, Binding::RPlMin),
+            Token::Star | Token::Slash | Token::Mod => (Binding::LMulDiv, Binding::RMulDiv),
+            Token::Eq => (Binding::LAssign, Binding::RAssign),
+            Token::Xor => (Binding::LXor, Binding::RXor),
+            Token::And => (Binding::LAnd, Binding::RAnd),
+            Token::Pipe => (Binding::LOr, Binding::ROr),
+            Token::RShift | Token::LShift => (Binding::LShift, Binding::RShift),
+            Token::Deq | Token::Neq | Token::Lt | Token::Gt | Token::Leq | Token::Geq => (Binding::LRela, Binding::RRela),
+            _ => return None,
+        })
+    }
 }
 
 /// Gives a reason for why the lexer stopped.
@@ -94,6 +126,7 @@ impl<'src> Iterator for Lexer<'src> {
                     '-' => symbol!(Token::Minus),
                     '*' => symbol!(Token::Star),
                     '/' => symbol!(Token::Slash),
+                    '%' => symbol!(Token::Mod),
                     '^' => symbol!(Token::Xor),
                     '&' => symbol!(Token::And),
                     '=' => symbol!(Token::Eq, '=', Token::Deq),

@@ -25,6 +25,7 @@ pub enum Expression<'src> {
     IntLit(&'src str),
     Block(Block<'src>),
     Function(Function<'src>),
+    Call(Box<Expression<'src>>, Vec<Expression<'src>>),
 }
 
 #[derive(Debug, Clone)]
@@ -53,13 +54,14 @@ pub enum BinOp {
     Minus,
     Mul,
     Div,
+    Mod,
     Xor,
     And,
     Or,
     RShift,
     LShift,
     Ne, Lt, Gt, Leq, Geq, Eq,
-    Assign(Option<Box<BinOp>>),
+    Assign,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,6 +80,23 @@ pub enum Type<'src> {
 pub enum ParserError {
     MissingTokens,
     UnexpectedToken,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Binding {
+    None,
+    RAssign,
+    LOr, ROr,
+    LXor, RXor,
+    LAnd, RAnd,
+    LRela, RRela,
+    LShift, RShift,
+    LPlMin, RPlMin,
+    LMulDiv, RMulDiv,
+    LAssign,
+    ANot,
+    ANegate,
+    PCall,
 }
 
 macro_rules! token_expect {
@@ -198,6 +217,104 @@ impl<'src> Ast<'src> {
     }
 
     fn parse_expr(lexer: &mut Peekable<Lexer<'src>>, end: usize) -> Result<Expression<'src>, Spanned<'src, CompileError>> {
-        todo!()
+        Self::parse_expr_bp(lexer, end, Binding::None)
+    }
+
+    fn parse_expr_bp(lexer: &mut Peekable<Lexer<'src>>, end: usize, bp: Binding) -> Result<Expression<'src>, Spanned<'src, CompileError>> {
+        let mut lhs = token_expect_match!(lexer, end, span,
+            Token::Ident(ident) => Expression::Ident(ident),
+            Token::IntLit(lit) => Expression::IntLit(lit),
+            Token::BraceOpen => Expression::Block(Self::parse_block(lexer, end)?),
+            Token::Fn => {
+                todo!("Function definition")
+            },
+            t if t.prefix_bp().is_some() => Expression::UnaryOp(match t {
+                Token::Not => UnOp::Not,
+                Token::Minus => UnOp::Minus,
+                _ => unreachable!("Not a valid prefix operator but t should be a prefix operator"),
+            }, Box::new(Self::parse_expr_bp(lexer, end, Token::Not.prefix_bp().unwrap().1)?)),
+        );
+
+        loop {
+            let op_token = token_expect_peek_match!(lexer, end, span,
+                Token::Semi | Token::Comma | Token::BraceClose | Token::ParenClose => break,
+                t if t.infix_bp().is_some() || t.postfix_bp().is_some() => t,
+            );
+
+            if let Some((l_bp, ())) = op_token.postfix_bp() {
+                if l_bp < bp {
+                    break;
+                }
+
+                lexer.next();
+
+                lhs = match op_token {
+                    Token::ParenOpen => {
+                        let mut exprs = Vec::new();
+
+                        loop {
+                            token_expect_peek_match!(lexer, end, span,
+                                Token::ParenClose => {
+                                    lexer.next();
+                                    break;
+                                },
+                                _ => (),
+                            );
+
+                            exprs.push(Self::parse_expr_bp(lexer, end, Binding::None)?);
+
+                            token_expect_match!(lexer, end, span,
+                                Token::ParenClose => break,
+                                Token::Comma => (),
+                            )
+                        }
+
+                        Expression::Call(Box::new(lhs), exprs)
+                    },
+                    _ => {
+                        Expression::UnaryOp(match op_token {
+                            _ => unreachable!("Not a valid postfix operator but op_token should be a postfix operator"),
+                        }, Box::new(lhs))
+                    },
+                };
+
+                continue;
+            }
+
+            let (l_bp, r_bp) = op_token.infix_bp().unwrap();
+
+            if l_bp < bp {
+                break;
+            }
+
+            lexer.next();
+
+            lhs = Expression::BinaryOp(match op_token {
+                Token::Plus => BinOp::Plus,
+                Token::Minus => BinOp::Minus,
+                Token::Star => BinOp::Mul,
+                Token::Slash => BinOp::Div,
+                Token::Mod => BinOp::Mod,
+                Token::Eq => BinOp::Assign,
+                Token::Xor => BinOp::Xor,
+                Token::And => BinOp::And,
+                Token::Pipe => BinOp::Or,
+                Token::RShift => BinOp::RShift,
+                Token::LShift => BinOp::LShift,
+                Token::Deq => BinOp::Eq,
+                Token::Neq => BinOp::Ne,
+                Token::Lt => BinOp::Lt,
+                Token::Gt => BinOp::Gt,
+                Token::Leq => BinOp::Leq,
+                Token::Geq => BinOp::Geq,
+                _ => unreachable!("Not a valid infix operator but op_token should be an infix operator"),
+            }, Box::new(lhs), Box::new(Self::parse_expr_bp(lexer, end, r_bp)?));
+        }
+
+        Ok(lhs)
+    }
+
+    fn parse_block(lexer: &mut Peekable<Lexer<'src>>, end: usize) -> Result<Block<'src>, Spanned<'src, CompileError>> {
+        todo!("parse_block")
     }
 }
