@@ -89,7 +89,7 @@ impl<'src> AddAssign for Span<'src> {
 pub struct Spanned<'src, T> {
     /// The spanned T instance
     pub inner: T,
-    span: Span<'src>,
+    pub span: Span<'src>,
 }
 
 impl<'src, T: Copy> Copy for Spanned<'src, T> {}

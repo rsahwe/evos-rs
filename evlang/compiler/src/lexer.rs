@@ -1,6 +1,6 @@
 use core::{iter::Peekable, str::CharIndices};
 
-use crate::span::{Span, Spanned};
+use crate::{span::{Span, Spanned}, CompileError};
 
 /// All possible basic elements of a source file
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -30,6 +30,7 @@ pub enum Token<'src> {
     Eq, Deq, Lt, Gt,
     Neq, Leq, Geq,
     Semi,
+    Comma,
 }
 
 /// Gives a reason for why the lexer stopped.
@@ -56,7 +57,7 @@ impl<'src> Lexer<'src> {
 }
 
 impl<'src> Iterator for Lexer<'src> {
-    type Item = Result<Spanned<'src, Token<'src>>, Spanned<'src, LexerError>>;
+    type Item = Result<Spanned<'src, Token<'src>>, Spanned<'src, CompileError>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.stopped {
@@ -100,6 +101,7 @@ impl<'src> Iterator for Lexer<'src> {
                     '<' => symbol!(Token::Lt, '=', Token::Leq, '<', Token::LShift),
                     '!' => symbol!(Token::Not, '=', Token::Eq),
                     ';' => symbol!(Token::Semi),
+                    ',' => symbol!(Token::Comma),
                     c if c.is_whitespace() => {
                         self.next().unwrap()
                     },
@@ -139,7 +141,7 @@ impl<'src> Iterator for Lexer<'src> {
                                     self.chars.next();
                                     if c != '0' {
                                         self.stopped = true;
-                                        return Some(Err(Spanned::new(LexerError::MalformedInput, Span::new_inclusive(idx..=ndx))));
+                                        return Some(Err(Spanned::new(LexerError::MalformedInput, Span::new_inclusive(idx..=ndx)).into()));
                                     }
                                     match self.chars.next() {
                                         Some((tdx, thr)) => {
@@ -147,12 +149,12 @@ impl<'src> Iterator for Lexer<'src> {
                                                 end = tdx;
                                             } else {
                                                 self.stopped = true;
-                                                return Some(Err(Spanned::new(LexerError::MalformedInput, Span::new_inclusive(idx..=tdx))));
+                                                return Some(Err(Spanned::new(LexerError::MalformedInput, Span::new_inclusive(idx..=tdx)).into()));
                                             }
                                         },
                                         None => {
                                             self.stopped = true;
-                                            return Some(Err(Spanned::new(LexerError::UnexpectedEof, Span::new_single(self.source.len()))))
+                                            return Some(Err(Spanned::new(LexerError::UnexpectedEof, Span::new_single(self.source.len() - 1)).into()))
                                         },
                                     }
                                 },
@@ -172,7 +174,7 @@ impl<'src> Iterator for Lexer<'src> {
                     },
                     _ => {
                         self.stopped = true;
-                        Err(Spanned::new(LexerError::MalformedInput, Span::new_single(idx)))
+                        Err(Spanned::new(LexerError::MalformedInput, Span::new_single(idx)).into())
                     },
                 })
             },
