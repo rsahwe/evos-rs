@@ -42,9 +42,8 @@ pub struct Block<'src> {
 
 #[derive(Debug, Clone)]
 pub struct Function<'src> {
-    name: &'src str,
-    given_type: Option<Type<'src>>,
-    parameters: Vec<&'src str>,
+    return_type: Type<'src>,
+    parameters: Vec<(&'src str, Type<'src>)>,
     content: Box<Expression<'src>>,
 }
 
@@ -80,6 +79,7 @@ pub enum Type<'src> {
 pub enum ParserError {
     MissingTokens,
     UnexpectedToken,
+    InferenceBlocked,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -169,7 +169,7 @@ impl<'src> Ast<'src> {
 
         let given_type = token_expect_match!(lexer, end, span,
             Token::Pipe => None,
-            Token::Colon => Some(Self::parse_type(lexer, end)?),
+            Token::Colon => Some(Self::parse_type(lexer, end, false)?),
         );
 
         token_expect_consume!(lexer, end, Token::Eq);
@@ -181,7 +181,7 @@ impl<'src> Ast<'src> {
         Ok(Declaration { mutable: is_mut, name, given_type, value: expr })
     }
 
-    fn parse_type(lexer: &mut Peekable<Lexer<'src>>, end: usize) -> Result<Type<'src>, Spanned<'src, CompileError>> {
+    fn parse_type(lexer: &mut Peekable<Lexer<'src>>, end: usize, block_inference: bool) -> Result<Type<'src>, Spanned<'src, CompileError>> {
         token_expect_match!(lexer, end, span,
             Token::Ident(ident) => Ok(Type::Simple(ident)),
             Token::Fn => {
@@ -198,7 +198,7 @@ impl<'src> Ast<'src> {
                         Token::Ident(_) | Token::Fn => (),
                     );
 
-                    args.push(Self::parse_type(lexer, end)?);
+                    args.push(Self::parse_type(lexer, end, block_inference)?);
 
                     token_expect_match!(lexer, end, span,
                         Token::ParenClose => break,
@@ -207,8 +207,10 @@ impl<'src> Ast<'src> {
                 }
 
                 let ret = token_expect_match!(lexer, end, span,
-                    Token::Pipe => None,
-                    Token::Colon => Some(Box::new(Self::parse_type(lexer, end)?)),
+                    Token::Pipe => if !block_inference { None } else {
+                        Err(Spanned::new(ParserError::InferenceBlocked, span))?
+                    },
+                    Token::Colon => Some(Box::new(Self::parse_type(lexer, end, block_inference)?)),
                 );
 
                 Ok(Type::Function(args, ret))
@@ -226,7 +228,38 @@ impl<'src> Ast<'src> {
             Token::IntLit(lit) => Expression::IntLit(lit),
             Token::BraceOpen => Expression::Block(Self::parse_block(lexer, end)?),
             Token::Fn => {
-                todo!("Function definition")
+                token_expect_consume!(lexer, end, Token::ParenOpen);
+
+                let mut args = Vec::new();
+
+                loop {
+                    let ident = token_expect_match!(lexer, end, span,
+                        Token::ParenClose => break,
+                        Token::Ident(ident) => ident,
+                    );
+
+                    token_expect_consume!(lexer, end, Token::Colon);
+
+                    args.push((ident, Self::parse_type(lexer, end, true)?));
+
+                    token_expect_match!(lexer, end, span,
+                        Token::ParenClose => break,
+                        Token::Comma => (),
+                    );
+                }
+
+                let ret = token_expect_match!(lexer, end, span,
+                    Token::Pipe => Err(Spanned::new(ParserError::InferenceBlocked, span))?,
+                    Token::Colon => Self::parse_type(lexer, end, true)?,
+                );
+
+                token_expect_consume!(lexer, end, Token::Colon);
+
+                let content = Box::new(Self::parse_expr_bp(lexer, end, Binding::None)?);
+
+                token_expect_consume!(lexer, end, Token::Semi);
+
+                Expression::Function(Function { return_type: ret, parameters: args, content })
             },
             t if t.prefix_bp().is_some() => Expression::UnaryOp(match t {
                 Token::Not => UnOp::Not,
