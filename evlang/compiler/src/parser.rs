@@ -147,7 +147,7 @@ impl<'src> Ast<'src> {
             return Ok(ast);
         }
         
-        let end = source.len() - 1;
+        let end = source.chars().count() - 1;
         let mut lexer = Lexer::new(source).peekable();
 
         while lexer.peek().is_some() {
@@ -226,7 +226,13 @@ impl<'src> Ast<'src> {
         let mut lhs = token_expect_match!(lexer, end, span,
             Token::Ident(ident) => Expression::Ident(ident),
             Token::IntLit(lit) => Expression::IntLit(lit),
-            Token::BraceOpen => Expression::Block(Self::parse_block(lexer, end)?),
+            Token::BraceOpen => {
+                let block = Self::parse_block(lexer, end)?;
+                
+                token_expect_consume!(lexer, end, Token::BraceClose);
+
+                Expression::Block(block)
+            },
             Token::Fn => {
                 token_expect_consume!(lexer, end, Token::ParenOpen);
 
@@ -256,8 +262,6 @@ impl<'src> Ast<'src> {
                 token_expect_consume!(lexer, end, Token::Colon);
 
                 let content = Box::new(Self::parse_expr_bp(lexer, end, Binding::None)?);
-
-                token_expect_consume!(lexer, end, Token::Semi);
 
                 Expression::Function(Function { return_type: ret, parameters: args, content })
             },
@@ -348,6 +352,26 @@ impl<'src> Ast<'src> {
     }
 
     fn parse_block(lexer: &mut Peekable<Lexer<'src>>, end: usize) -> Result<Block<'src>, Spanned<'src, CompileError>> {
-        todo!("parse_block")
+        let mut content = Vec::new();
+
+        loop {
+            token_expect_peek_match!(lexer, end, span,
+                Token::Const | Token::Mut => content.push(DeclOrExpr::Declaration(Self::parse_decl(lexer, end)?)),
+                Token::BraceClose => return Ok(Block { content, last: None }),
+                _ => {
+                    let expr = Self::parse_expr(lexer, end)?;
+
+                    token_expect_peek_match!(lexer, end, span,
+                        Token::Semi => {
+                            lexer.next();
+                            content.push(DeclOrExpr::Expression(expr));
+                        },
+                        Token::BraceClose => {
+                            return Ok(Block { content, last: Some(Box::new(expr)) })
+                        },
+                    );
+                }
+            );
+        }
     }
 }

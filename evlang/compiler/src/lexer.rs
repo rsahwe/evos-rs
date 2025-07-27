@@ -135,9 +135,7 @@ impl<'src> Iterator for Lexer<'src> {
                     '!' => symbol!(Token::Not, '=', Token::Eq),
                     ';' => symbol!(Token::Semi),
                     ',' => symbol!(Token::Comma),
-                    c if c.is_whitespace() => {
-                        self.next().unwrap()
-                    },
+                    c if c.is_whitespace() => self.next()?,
                     c if c.is_alphabetic() || c == '_' => {
                         let start = idx;
 
