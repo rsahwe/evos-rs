@@ -23,6 +23,7 @@ pub enum Expression<'src> {
     UnaryOp(UnOp, Box<Expression<'src>>),
     Ident(&'src str),
     IntLit(&'src str),
+    BoolLit(bool),
     Block(Block<'src>),
     Function(Function<'src>),
     Call(Box<Expression<'src>>, Vec<Expression<'src>>),
@@ -60,7 +61,7 @@ pub enum BinOp {
     RShift,
     LShift,
     Ne, Lt, Gt, Leq, Geq, Eq,
-    Assign,
+    Assign,//TODO: OTHER ASSIGN STUFF (+=, etc)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -226,6 +227,8 @@ impl<'src> Ast<'src> {
         let mut lhs = token_expect_match!(lexer, end, span,
             Token::Ident(ident) => Expression::Ident(ident),
             Token::IntLit(lit) => Expression::IntLit(lit),
+            Token::True => Expression::BoolLit(true),
+            Token::False => Expression::BoolLit(false),
             Token::BraceOpen => {
                 let block = Self::parse_block(lexer, end)?;
                 
@@ -373,5 +376,250 @@ impl<'src> Ast<'src> {
                 }
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate std;
+
+    use crate::{parser::{Ast, Expression, Type}, span::Spanned, CompileError};
+
+    fn print_type(typ: &Type<'static>) {
+        match typ {
+            Type::Simple(name) => std::print!("{}", name),
+            Type::Function(items, ret) => {
+                std::print!("fn(");
+                if items.len() != 0 {
+                    print_type(&items[0]);
+
+                    for item in items.as_slice().iter().skip(1) {
+                        std::print!(", ");
+                        print_type(item);
+                    }
+                }
+                std::print!(")");
+
+                match ret {
+                    Some(typ) => {
+                        std::print!(": ");
+                        print_type(typ);
+                    },
+                    None => std::print!("|"),
+                }
+            },
+        }
+    }
+
+    fn print_expr(expr: &Expression<'static>) {
+        std::print!("(");
+        match expr {
+            Expression::BoolLit(val) => {
+                if *val {
+                    std::print!("true");
+                } else {
+                    std::print!("false");
+                }
+            }
+            Expression::BinaryOp(bin_op, expression, expression1) => match bin_op {
+                crate::parser::BinOp::Plus => {
+                    print_expr(expression);
+                    std::print!(" + ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::Minus => {
+                    print_expr(expression);
+                    std::print!(" - ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::Mul => {
+                    print_expr(expression);
+                    std::print!(" * ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::Div => {
+                    print_expr(expression);
+                    std::print!(" / ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::Mod => {
+                    print_expr(expression);
+                    std::print!(" % ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::Xor => {
+                    print_expr(expression);
+                    std::print!(" ^ ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::And => {
+                    print_expr(expression);
+                    std::print!(" & ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::Or => {
+                    print_expr(expression);
+                    std::print!(" | ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::RShift => {
+                    print_expr(expression);
+                    std::print!(" >> ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::LShift => {
+                    print_expr(expression);
+                    std::print!(" << ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::Ne => {
+                    print_expr(expression);
+                    std::print!(" != ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::Lt => {
+                    print_expr(expression);
+                    std::print!(" < ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::Gt => {
+                    print_expr(expression);
+                    std::print!(" > ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::Leq => {
+                    print_expr(expression);
+                    std::print!(" <= ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::Geq => {
+                    print_expr(expression);
+                    std::print!(" >= ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::Eq => {
+                    print_expr(expression);
+                    std::print!(" == ");
+                    print_expr(expression1);
+                },
+                crate::parser::BinOp::Assign => {
+                    print_expr(expression);
+                    std::print!(" = ");
+                    print_expr(expression1);
+                },
+            },
+            Expression::UnaryOp(un_op, expression) => match un_op {
+                crate::parser::UnOp::Not => {
+                    std::print!("!");
+                    print_expr(expression);
+                },
+                crate::parser::UnOp::Minus => {
+                    std::print!("-");
+                    print_expr(expression);
+                },
+            },
+            Expression::Ident(ident) => std::print!("{}", ident),
+            Expression::IntLit(lit) => std::print!("{}", lit),
+            Expression::Block(block) => {
+                std::print!("{{ ");
+                for doe in &block.content {
+                    match doe {
+                        crate::parser::DeclOrExpr::Declaration(declaration) => {
+                            match declaration.mutable {
+                                true => std::print!("mut "),
+                                false => std::print!("const "),
+                            }
+
+                            std::print!("{}", declaration.name);
+
+                            match &declaration.given_type {
+                                Some(typ) => {
+                                    std::print!(": ");
+                                    print_type(typ);
+                                    std::print!(" = ");
+                                },
+                                None => std::print!(" |= "),
+                            }
+
+                            print_expr(&declaration.value);
+                            std::print!("; ");
+                        },
+                        crate::parser::DeclOrExpr::Expression(expression) => {
+                            print_expr(expression);
+                            std::print!("; ")
+                        },
+                    }
+                }
+                if let Some(expr) = &block.last {
+                    print_expr(expr);
+                    std::print!(" ");
+                }
+                std::print!("}}");
+            },
+            Expression::Function(function) => {
+                std::print!("fn(");
+                if function.parameters.len() != 0 {
+                    std::print!("{}: ", &function.parameters[0].0);
+                    print_type(&function.parameters[0].1);
+
+                    for (ident, typ) in function.parameters.as_slice().iter().skip(1) {
+                        std::print!(", ");
+                        std::print!("{}: ", ident);
+                        print_type(typ);
+                    }
+                }
+                std::print!("): ");
+                print_type(&function.return_type);
+                std::print!(": ");
+                print_expr(&function.content);
+            },
+            Expression::Call(expression, expressions) => {
+                print_expr(expression);
+                std::print!("(");
+                if expressions.len() != 0 {
+                    print_expr(&expressions[0]);
+
+                    for expr in expressions.as_slice().iter().skip(1) {
+                        std::print!(", ");
+                        print_expr(expr);
+                    }
+                }
+                std::print!(")");
+            },
+        }
+        std::print!(")");
+    }
+
+    fn print_ast(ast: &Ast<'static>) {
+        for decl in &ast.decls {
+            match decl.mutable {
+                true => std::print!("mut "),
+                false => std::print!("const "),
+            }
+
+            std::print!("{}", decl.name);
+
+            match &decl.given_type {
+                Some(typ) => {
+                    std::print!(": ");
+                    print_type(typ);
+                    std::print!(" = ");
+                },
+                None => std::print!(" |= "),
+            }
+
+            print_expr(&decl.value);
+            std::println!(";");
+        }
+    }
+
+    #[test]
+    fn test_parser() -> Result<(), Spanned<'static, CompileError>> {
+        let source = "mut a: u64 = 0;\nconst b |= { const c |= 3; 1 + a } = 1 + 2;\n";
+        let parsed = match Ast::parse(source) {
+            Ok(parsed) => parsed,
+            Err(err) => panic!("'{}': '{:?}'", err.span().as_slice(source), err.inner),
+        };
+        print_ast(&parsed);
     }
 }

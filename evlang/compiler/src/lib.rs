@@ -7,6 +7,7 @@ extern crate alloc;
 pub mod span;
 pub mod lexer;
 pub mod parser;
+pub mod checker;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CompileError {
