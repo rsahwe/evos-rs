@@ -1,0 +1,4 @@
+N slots
+Each slot: Count + Address
+When accessed Count++ (maybe different number)
+When not buffered slot accessed: all slots-- (maybe different number), slot with least count replaced
