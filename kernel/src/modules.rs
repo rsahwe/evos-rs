@@ -15,7 +15,12 @@ pub struct ModuleMetadata {
 
 impl Display for ModuleMetadata {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{} {}", <FFIStr as Into<&str>>::into(self.name), <FFIStr as Into<&str>>::into(self.version_string))
+        write!(
+            f,
+            "{} {}",
+            <FFIStr as Into<&str>>::into(self.name),
+            <FFIStr as Into<&str>>::into(self.version_string)
+        )
     }
 }
 
@@ -37,7 +42,8 @@ static KERNEL_MODULES: &[&Module] = &[
     &sata::SATA_MODULE,
 ];
 
-static EXTRA_KERNEL_MODULES: Mutex<([MaybeUninit<Module>; 255], usize)> = Mutex::new(([MaybeUninit::uninit(); 255], 0));
+static EXTRA_KERNEL_MODULES: Mutex<([MaybeUninit<Module>; 255], usize)> =
+    Mutex::new(([MaybeUninit::uninit(); 255], 0));
 
 pub(crate) fn init() -> (usize, usize) {
     debug!("Initializing modules:");
@@ -53,13 +59,13 @@ pub(crate) fn init() -> (usize, usize) {
             warn!("    Module `{}` load [ERR]", (module.metadata)());
         }
     }
-    
+
     (count, KERNEL_MODULES.len())
 }
 
 pub fn register(module: Module) -> bool {
     debug!("Registering late module `{}`:", (module.metadata)());
-    
+
     let mut guard = EXTRA_KERNEL_MODULES.lock();
 
     if guard.1 >= guard.0.len() {

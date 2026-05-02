@@ -1,26 +1,42 @@
-use core::{fmt::Display, mem::MaybeUninit, slice, sync::atomic::{AtomicBool, Ordering}};
+use core::{
+    fmt::Display,
+    mem::MaybeUninit,
+    slice,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use spin::RwLock;
-use x86_64::{instructions::port::Port, structures::port::{PortRead, PortWrite}};
+use x86_64::{
+    instructions::port::Port,
+    structures::port::{PortRead, PortWrite},
+};
 
-use crate::{debug, error, mem::{self, virt::VirtFrame}, warn};
+use crate::{
+    debug, error,
+    mem::{self, virt::VirtFrame},
+    warn,
+};
 
-const VENDOR_OFFSET: u8             = 0x00;
-const DEVICE_ID_OFFSET: u8          = 0x02;
-const COMMAND_OFFSET: u8            = 0x04;
-const STATUS_OFFSET: u8             = 0x06;
-const PROG_IF_REV_OFFSET: u8        = 0x08;
-const CLASS_SUBCLASS_OFFSET: u8     = 0x0a;
+const VENDOR_OFFSET: u8 = 0x00;
+const DEVICE_ID_OFFSET: u8 = 0x02;
+const COMMAND_OFFSET: u8 = 0x04;
+const STATUS_OFFSET: u8 = 0x06;
+const PROG_IF_REV_OFFSET: u8 = 0x08;
+const CLASS_SUBCLASS_OFFSET: u8 = 0x0a;
 #[allow(unused)]
-const TIMER_CACHE_LINE_OFFSET: u8   = 0x0c;
-const BIST_HEADER_TYPE_OFFSET: u8   = 0x0e;
-const INTERRUPT_OFFSET: u8          = 0x3c;
+const TIMER_CACHE_LINE_OFFSET: u8 = 0x0c;
+const BIST_HEADER_TYPE_OFFSET: u8 = 0x0e;
+const INTERRUPT_OFFSET: u8 = 0x3c;
 
 pub struct Pci;
 
 impl Pci {
     fn read_config(bus: u8, slot: u8, func: u8, offset: u8) -> u16 {
-        let address = ((bus as u32) << 16) | ((slot as u32) << 11) | ((func as u32) << 8) | (offset as u32 & 0xfc) | 0x80000000;
+        let address = ((bus as u32) << 16)
+            | ((slot as u32) << 11)
+            | ((func as u32) << 8)
+            | (offset as u32 & 0xfc)
+            | 0x80000000;
 
         // SAFETY: SAFE
         unsafe { Port::new(0xcf8).write(address) };
@@ -30,7 +46,11 @@ impl Pci {
     }
 
     fn write_config(bus: u8, slot: u8, func: u8, offset: u8, value: u16) {
-        let address = ((bus as u32) << 16) | ((slot as u32) << 11) | ((func as u32) << 8) | (offset as u32 & 0xfc) | 0x80000000;
+        let address = ((bus as u32) << 16)
+            | ((slot as u32) << 11)
+            | ((func as u32) << 8)
+            | (offset as u32 & 0xfc)
+            | 0x80000000;
 
         // SAFETY: SAFE
         unsafe { Port::new(0xcf8).write(address) };
@@ -41,11 +61,17 @@ impl Pci {
         // SAFETY: SAFE
         let previous = unsafe { port.read() };
         // SAFETY: SAFE
-        unsafe { port.write((previous & !(0xFF << shift)) | ((value as u32) << shift)); }
+        unsafe {
+            port.write((previous & !(0xFF << shift)) | ((value as u32) << shift));
+        }
     }
 
     fn set_bar_address(bus: u8, slot: u8, func: u8, bar: u8) -> Port<u32> {
-        let address = ((bus as u32) << 16) | ((slot as u32) << 11) | ((func as u32) << 8) | ((0x10 + (bar as u32 * 4)) & 0xfc) | 0x80000000;
+        let address = ((bus as u32) << 16)
+            | ((slot as u32) << 11)
+            | ((func as u32) << 8)
+            | ((0x10 + (bar as u32 * 4)) & 0xfc)
+            | 0x80000000;
 
         // SAFETY: SAFE
         unsafe { Port::new(0xcf8).write(address) };
@@ -80,11 +106,19 @@ impl Pci {
     }
 
     fn iter() -> PciDeviceIterator {
-        PciDeviceIterator { bus: 0, slot: 0, func: 0 }
+        PciDeviceIterator {
+            bus: 0,
+            slot: 0,
+            func: 0,
+        }
     }
 
     pub fn own_by_class(class: u8, subclass: u8) -> OwningPciDeviceIterator {
-        OwningPciDeviceIterator { index: 0, class, subclass }
+        OwningPciDeviceIterator {
+            index: 0,
+            class,
+            subclass,
+        }
     }
 }
 
@@ -136,7 +170,7 @@ impl PciDevice {
     }
 
     pub fn bist(&self) -> u8 {
-        (Pci::read_config(self.bus as u8, self.slot, self.func, BIST_HEADER_TYPE_OFFSET) >> 8) as u8
+        (Pci::read_config(self.bus, self.slot, self.func, BIST_HEADER_TYPE_OFFSET) >> 8) as u8
     }
 
     pub fn bars(&self) -> [Option<Bar>; 6] {
@@ -157,7 +191,12 @@ impl PciDevice {
                 if bar & 1 == 1 {
                     if (size & !3) != 0 {
                         match ((bar & !3).try_into(), (!(size & !3) + 1).try_into()) {
-                            (Ok(portbase), Ok(size)) => bars[index as usize] = Some(Bar::Port { base: portbase, len: size }),
+                            (Ok(portbase), Ok(size)) => {
+                                bars[index as usize] = Some(Bar::Port {
+                                    base: portbase,
+                                    len: size,
+                                })
+                            }
                             (_, _) => error!("PCI Bar IO base or size too high"),
                         }
                     }
@@ -182,9 +221,15 @@ impl PciDevice {
                             let base = ((second_bar as usize) << 32) | (bar as usize);
                             let size = ((second_size as usize) << 32) | (size as usize);
 
-                            bars[index as usize] = Some(Bar::Memory { data: base & !0xf, len: !(size & !0xf) + 1 })
+                            bars[index as usize] = Some(Bar::Memory {
+                                data: base & !0xf,
+                                len: !(size & !0xf) + 1,
+                            })
                         } else {
-                            bars[index as usize] = Some(Bar::Memory { data: bar as usize & !0xf, len: !(size & !0xf) as usize + 1 })
+                            bars[index as usize] = Some(Bar::Memory {
+                                data: bar as usize & !0xf,
+                                len: !(size & !0xf) as usize + 1,
+                            })
                         }
                     }
                 }
@@ -203,7 +248,9 @@ impl PciDevice {
 
 impl Display for PciDevice {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "PCI device {:04x}:{:04x} class {:02x}:{:02x}(:{:02x}) revision 0x{:02x} at {:02x}:{:02x}.{}",
+        write!(
+            f,
+            "PCI device {:04x}:{:04x} class {:02x}:{:02x}(:{:02x}) revision 0x{:02x} at {:02x}:{:02x}.{}",
             self.vendor(),
             self.id(),
             self.class().0,
@@ -221,15 +268,29 @@ impl Bar {
     pub fn memory_region(&self) -> Option<&'static mut [u8]> {
         match self {
             // SAFETY: ALLOCATED BY BIOS
-            Bar::Memory { data, len } => unsafe { Some(slice::from_raw_parts_mut((data + mem::OFFSET as usize) as *mut u8, *len)) },
+            Bar::Memory { data, len } => unsafe {
+                Some(slice::from_raw_parts_mut(
+                    (data + mem::OFFSET as usize) as *mut u8,
+                    *len,
+                ))
+            },
             Bar::Port { base: _, len: _ } => None,
         }
     }
 
-    pub fn port<T: PortRead + PortWrite>(&self, offset: u16) -> Option<Result<Port<T>, &'static str>> {
+    pub fn port<T: PortRead + PortWrite>(
+        &self,
+        offset: u16,
+    ) -> Option<Result<Port<T>, &'static str>> {
         match self {
             Bar::Memory { data: _, len: _ } => None,
-            Bar::Port { base, len } => if offset >= *len { Some(Err("index out of bounds")) } else { Some(Ok(Port::new(*base + offset))) },
+            Bar::Port { base, len } => {
+                if offset >= *len {
+                    Some(Err("index out of bounds"))
+                } else {
+                    Some(Ok(Port::new(*base + offset)))
+                }
+            }
         }
     }
 }
@@ -246,14 +307,28 @@ impl Iterator for PciDeviceIterator {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if self.bus == 256 {
-                return None
+                return None;
             }
 
-            let device = PciDevice { bus: self.bus as u8, slot: self.slot, func: self.func };
+            let device = PciDevice {
+                bus: self.bus as u8,
+                slot: self.slot,
+                func: self.func,
+            };
 
             let res = device.vendor() != u16::MAX;
 
-            if self.func == 7 || (self.func == 0 && !(res && (Pci::read_config(self.bus as u8, self.slot, self.func, BIST_HEADER_TYPE_OFFSET) & 0x0080) != 0)) {
+            if self.func == 7
+                || (self.func == 0
+                    && !(res
+                        && (Pci::read_config(
+                            self.bus as u8,
+                            self.slot,
+                            self.func,
+                            BIST_HEADER_TYPE_OFFSET,
+                        ) & 0x0080)
+                            != 0))
+            {
                 self.func = 0;
                 self.slot += 1;
                 if self.slot == 32 {
@@ -265,7 +340,7 @@ impl Iterator for PciDeviceIterator {
             }
 
             if res && device.class().0 != 6 {
-                return Some(device)
+                return Some(device);
             }
         }
     }
@@ -278,7 +353,10 @@ struct PciDeviceCollector {
 
 impl FromIterator<PciDevice> for VirtFrame<PciDeviceCollector> {
     fn from_iter<T: IntoIterator<Item = PciDevice>>(iter: T) -> Self {
-        let mut this = Self::new(PciDeviceCollector { devices: [const { (MaybeUninit::uninit(), AtomicBool::new(false)) }; 1000], count: 0 });
+        let mut this = Self::new(PciDeviceCollector {
+            devices: [const { (MaybeUninit::uninit(), AtomicBool::new(false)) }; 1000],
+            count: 0,
+        });
 
         for el in iter {
             if this.count == this.devices.len() {
@@ -300,9 +378,11 @@ static PCI_DEVICES: RwLock<Option<VirtFrame<PciDeviceCollector>>> = RwLock::new(
 pub fn init() -> usize {
     debug!("Enumerating Pci bus:");
 
-    let frame = Pci::iter().inspect(|device| {
-        debug!("    Found `{}`", device);
-    }).collect::<VirtFrame<PciDeviceCollector>>();
+    let frame = Pci::iter()
+        .inspect(|device| {
+            debug!("    Found `{}`", device);
+        })
+        .collect::<VirtFrame<PciDeviceCollector>>();
 
     *PCI_DEVICES.write() = Some(frame);
 
@@ -326,11 +406,11 @@ impl Iterator for OwningPciDeviceIterator {
             let full_ref = &devices.devices[self.index];
 
             if !full_ref.1.swap(true, Ordering::Relaxed) {
-                    // SAFETY: VALID IN FROMITERATOR IMPLEMENTATION
+                // SAFETY: VALID IN FROMITERATOR IMPLEMENTATION
                 let device_ref = unsafe { full_ref.0.assume_init_ref() };
 
                 if device_ref.class() == (self.class, self.subclass) {
-                    return Some(*device_ref)
+                    return Some(*device_ref);
                 } else {
                     full_ref.1.store(false, Ordering::Relaxed);
                 }

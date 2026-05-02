@@ -1,5 +1,13 @@
 use spin::{Mutex, MutexGuard};
-use x86_64::{instructions::tables::load_tss, registers::segmentation::{Segment, CS, DS, ES, FS, GS, SS}, structures::{gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector}, tss::TaskStateSegment}, PrivilegeLevel, VirtAddr};
+use x86_64::{
+    PrivilegeLevel, VirtAddr,
+    instructions::tables::load_tss,
+    registers::segmentation::{CS, DS, ES, FS, GS, SS, Segment},
+    structures::{
+        gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector},
+        tss::TaskStateSegment,
+    },
+};
 
 use crate::mem::STACK_SIZE;
 
@@ -38,7 +46,10 @@ pub fn init() {
     assert_eq!(gdt.append(Descriptor::kernel_data_segment()), KDS);
     assert_eq!(gdt.append(Descriptor::user_data_segment()), UDS);
     assert_eq!(gdt.append(Descriptor::user_code_segment()), UCS);
-    assert_eq!(gdt.append(Descriptor::tss_segment(MutexGuard::leak(tss))), TSS);
+    assert_eq!(
+        gdt.append(Descriptor::tss_segment(MutexGuard::leak(tss))),
+        TSS
+    );
 
     MutexGuard::leak(gdt).load();
 

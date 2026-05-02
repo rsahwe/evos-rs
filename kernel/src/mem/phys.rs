@@ -1,8 +1,17 @@
-use core::{mem::MaybeUninit, ops::{Deref, DerefMut}, slice};
+use core::{
+    mem::MaybeUninit,
+    ops::{Deref, DerefMut},
+    slice,
+};
 
 use bitvec::slice::BitSlice;
 use bootloader_api::info::{MemoryRegion, MemoryRegionKind, MemoryRegions};
-use x86_64::{structures::paging::{frame::PhysFrameRange, FrameAllocator, FrameDeallocator, PageSize, PhysFrame, Size4KiB}, PhysAddr, VirtAddr};
+use x86_64::{
+    PhysAddr, VirtAddr,
+    structures::paging::{
+        FrameAllocator, FrameDeallocator, PageSize, PhysFrame, Size4KiB, frame::PhysFrameRange,
+    },
+};
 
 use crate::debug;
 
@@ -17,13 +26,18 @@ struct SingleRegionPageFrameAllocator<'a> {
 impl SingleRegionPageFrameAllocator<'static> {
     /// SAFETY: MEMORYREGION MUST BE VALID AND USABLE AND AT LEAST EIGHT PAGES
     unsafe fn new(mut region: MemoryRegion) -> &'static mut Self {
-        region.start = PhysAddr::new(region.start).align_up(Size4KiB::SIZE).as_u64();
-        region.end = PhysAddr::new(region.end).align_down(Size4KiB::SIZE).as_u64();
+        region.start = PhysAddr::new(region.start)
+            .align_up(Size4KiB::SIZE)
+            .as_u64();
+        region.end = PhysAddr::new(region.end)
+            .align_down(Size4KiB::SIZE)
+            .as_u64();
 
         let start = VirtAddr::new(region.start + OFFSET);
         let size_in_pages = ((region.end - region.start) / Size4KiB::SIZE) as usize;
         let slice_size = size_in_pages / 8;
-        let offset = (size_of::<SingleRegionPageFrameAllocator>() + slice_size + Size4KiB::SIZE as usize - 1) / Size4KiB::SIZE as usize;
+        let offset = (size_of::<SingleRegionPageFrameAllocator>() + slice_size)
+            .div_ceil(Size4KiB::SIZE as usize);
         let this = start.as_mut_ptr::<MaybeUninit<Self>>();
         // SAFETY: OFFSET AND THIS IMPLEMENTATION GUARANTEES THAT THIS SLICE IS MAPPED AND UNIQUE
         let slice = unsafe { slice::from_raw_parts_mut(this.add(1).cast(), slice_size) };
@@ -34,9 +48,12 @@ impl SingleRegionPageFrameAllocator<'static> {
         let this = (unsafe { &mut *this }).write(SingleRegionPageFrameAllocator {
             next_free: None,
             bitmap,
-            frames: PhysFrame::range(PhysFrame::containing_address(PhysAddr::new(region.start)), PhysFrame::containing_address(PhysAddr::new(region.end)))
+            frames: PhysFrame::range(
+                PhysFrame::containing_address(PhysAddr::new(region.start)),
+                PhysFrame::containing_address(PhysAddr::new(region.end)),
+            ),
         });
-        
+
         this.bitmap[..offset].fill(true);
 
         this.next_free = this.bitmap.first_zero();
@@ -48,7 +65,10 @@ impl SingleRegionPageFrameAllocator<'static> {
         self.next_free.map(|this| {
             self.bitmap.set(this, true);
             self.next_free = self.bitmap[this..].first_zero().map(|val| val + this);
-            PhysFrame::from_start_address(PhysAddr::new(self.frames.start.start_address().as_u64() + Size4KiB::SIZE * this as u64)).unwrap()
+            PhysFrame::from_start_address(PhysAddr::new(
+                self.frames.start.start_address().as_u64() + Size4KiB::SIZE * this as u64,
+            ))
+            .unwrap()
         })
     }
 
@@ -61,11 +81,18 @@ impl SingleRegionPageFrameAllocator<'static> {
         if start <= frame && frame < end {
             let index = ((frame - start) / Size4KiB::SIZE) as usize;
             if !self.bitmap.get(index).unwrap() {
-                panic!("Invalid frame index {} for region @ Phys 0x{:016x} deallocated in SingleRegionPageFrameAllocator!!!", index, start)
+                panic!(
+                    "Invalid frame index {} for region @ Phys 0x{:016x} deallocated in SingleRegionPageFrameAllocator!!!",
+                    index, start
+                )
             } else {
                 self.bitmap.set(index, false);
                 match self.next_free {
-                    Some(old) => if old > index { self.next_free = Some(index) },
+                    Some(old) => {
+                        if old > index {
+                            self.next_free = Some(index)
+                        }
+                    }
                     None => self.next_free = Some(index),
                 }
                 true
@@ -87,7 +114,8 @@ impl SingleRegionPageFrameAllocator<'static> {
 /// Static SingleRegionPageFrameAllocator padded reference holder that has the same size as MemoryRegion.
 struct SSRPFAReferenceStruct {
     raw: &'static mut SingleRegionPageFrameAllocator<'static>,
-    _pad: [u8; size_of::<MemoryRegion>() - size_of::<&'static mut SingleRegionPageFrameAllocator>()],
+    _pad:
+        [u8; size_of::<MemoryRegion>() - size_of::<&'static mut SingleRegionPageFrameAllocator>()],
 }
 
 impl From<&'static mut SingleRegionPageFrameAllocator<'static>> for SSRPFAReferenceStruct {
@@ -128,21 +156,25 @@ impl PageFrameAllocator {
 
         while start != end {
             match raw[start].kind {
-                MemoryRegionKind::Usable => {
-                    if (PhysAddr::new(raw[start].end).align_down(Size4KiB::SIZE).as_u64() - PhysAddr::new(raw[start].start).align_up(Size4KiB::SIZE).as_u64()) / Size4KiB::SIZE >= 8 {
-                        start += 1;
-                    } else {
-                        raw.swap(start, end);
-                        end -= 1;
-                    }
-                },
+                MemoryRegionKind::Usable
+                    if (PhysAddr::new(raw[start].end)
+                        .align_down(Size4KiB::SIZE)
+                        .as_u64()
+                        - PhysAddr::new(raw[start].start)
+                            .align_up(Size4KiB::SIZE)
+                            .as_u64())
+                        / Size4KiB::SIZE
+                        >= 8 =>
+                {
+                    start += 1;
+                }
                 _ => {
                     raw.swap(start, end);
                     end -= 1;
-                },
+                }
             }
         }
-        
+
         // Both start and end are amount of regions
         let raw = &mut raw[..start];
 
@@ -151,7 +183,8 @@ impl PageFrameAllocator {
             let ptr = region as *mut MemoryRegion as *mut SSRPFAReferenceStruct;
 
             #[allow(unused)]
-            static STATIC_TRANSMUTABLITY_CHECK: () = assert!(size_of::<MemoryRegion>() == size_of::<SSRPFAReferenceStruct>());
+            static STATIC_TRANSMUTABLITY_CHECK: () =
+                assert!(size_of::<MemoryRegion>() == size_of::<SSRPFAReferenceStruct>());
 
             let region = *region;
 
@@ -163,34 +196,49 @@ impl PageFrameAllocator {
         }
 
         // SAFETY: SLICE IS ALREADY VALID AND INITIALIZED
-        let raw = unsafe { slice::from_raw_parts_mut(raw.as_mut_ptr().cast::<SSRPFAReferenceStruct>(), raw.len()) };
+        let raw = unsafe {
+            slice::from_raw_parts_mut(raw.as_mut_ptr().cast::<SSRPFAReferenceStruct>(), raw.len())
+        };
 
-        Self {
-            allocators: raw,
-        }
+        Self { allocators: raw }
     }
 
     pub fn size(&self) -> usize {
-        self.allocators.iter().fold(0, |acc, allocator| acc + allocator.size())
+        self.allocators
+            .iter()
+            .fold(0, |acc, allocator| acc + allocator.size())
     }
 
     pub fn free(&self) -> usize {
-        self.allocators.iter().fold(0, |acc, allocator| acc + allocator.free())
+        self.allocators
+            .iter()
+            .fold(0, |acc, allocator| acc + allocator.free())
     }
 }
 
 // SAFETY: THE ALLOCATOR SHOULD BE SAFE
 unsafe impl FrameAllocator<Size4KiB> for PageFrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
-        self.allocators.iter_mut().find_map(|allocator| allocator.allocate())
+        self.allocators
+            .iter_mut()
+            .find_map(|allocator| allocator.allocate())
     }
 }
 
 impl FrameDeallocator<Size4KiB> for PageFrameAllocator {
     unsafe fn deallocate_frame(&mut self, frame: PhysFrame) {
-        match self.allocators.iter_mut().find_map(|allocator| if allocator.deallocate(frame) { Some(()) } else { None } ) {
+        match self.allocators.iter_mut().find_map(|allocator| {
+            if allocator.deallocate(frame) {
+                Some(())
+            } else {
+                None
+            }
+        }) {
             Some(_) => (),
-            None => panic!("Invalid frame @ Phys 0x{:016x} deallocated in PageFrameAllocator!!!", frame.start_address().as_u64()),
+            None => panic!(
+                "Invalid frame @ Phys 0x{:016x} deallocated in PageFrameAllocator!!!",
+                frame.start_address().as_u64()
+            ),
         }
     }
 }

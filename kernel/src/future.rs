@@ -1,4 +1,8 @@
-use core::{future::poll_fn, pin::{pin, Pin}, task::{Context, Poll, Waker}};
+use core::{
+    future::poll_fn,
+    pin::{Pin, pin},
+    task::{Context, Poll, Waker},
+};
 
 const CONTEXT: Context<'_> = Context::from_waker(Waker::noop());
 
@@ -47,19 +51,30 @@ pub fn join<A: Future, B: Future>(a: A, b: B) -> impl Future {
         poll_fn(|cx| {
             if matches!(&results.0, &Poll::Pending) {
                 // SAFETY: PINNING PROJECTION
-                results.0 = unsafe { pinned_futures.as_mut().map_unchecked_mut(|fut| &mut fut.0).poll(cx) };
+                results.0 = unsafe {
+                    pinned_futures
+                        .as_mut()
+                        .map_unchecked_mut(|fut| &mut fut.0)
+                        .poll(cx)
+                };
             }
 
             if matches!(&results.1, &Poll::Pending) {
                 // SAFETY: PINNING PROJECTION
-                results.1 = unsafe { pinned_futures.as_mut().map_unchecked_mut(|fut| &mut fut.1).poll(cx) };
+                results.1 = unsafe {
+                    pinned_futures
+                        .as_mut()
+                        .map_unchecked_mut(|fut| &mut fut.1)
+                        .poll(cx)
+                };
             }
 
             match (&results.0, &results.1) {
                 (Poll::Ready(_), Poll::Ready(_)) => Poll::Ready(()),
                 _ => Poll::Pending,
             }
-        }).await;
+        })
+        .await;
 
         match results {
             (Poll::Ready(val_a), Poll::Ready(val_b)) => (val_a, val_b),

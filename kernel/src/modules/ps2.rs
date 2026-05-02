@@ -1,10 +1,10 @@
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use pc_keyboard::{HandleControl, Keyboard, ScancodeSet1};
+use pc_keyboard::{HandleControl, PS2Keyboard, ScancodeSet1};
 use spin::Mutex;
 use x86_64::instructions::port::{Port, PortReadOnly, PortWriteOnly};
 
-use crate::{ffi::FFIStr};
+use crate::ffi::FFIStr;
 
 use super::{Module, ModuleMetadata};
 
@@ -13,7 +13,12 @@ pub(super) static PS2_MODULE: Module = Module {
     init: ps2_init,
 };
 
-static KEYBOARD: Mutex<Keyboard<crate::config::keyboard::Layout, ScancodeSet1>> = Mutex::new(Keyboard::new(ScancodeSet1::new(), crate::config::keyboard::new_layout(), HandleControl::MapLettersToUnicode));
+static KEYBOARD: Mutex<PS2Keyboard<crate::config::keyboard::Layout, ScancodeSet1>> =
+    Mutex::new(PS2Keyboard::new(
+        ScancodeSet1::new(),
+        crate::config::keyboard::new_layout(),
+        HandleControl::MapLettersToUnicode,
+    ));
 
 static KEYBOARD_EXISTS: AtomicBool = AtomicBool::new(false);
 
@@ -23,11 +28,18 @@ const PS2_CONTROL: (
     // Status
     PortReadOnly<u8>,
     // Command
-    PortWriteOnly<u8>
-) = (Port::new(0x60), PortReadOnly::new(0x64), PortWriteOnly::new(0x64));
+    PortWriteOnly<u8>,
+) = (
+    Port::new(0x60),
+    PortReadOnly::new(0x64),
+    PortWriteOnly::new(0x64),
+);
 
 extern "sysv64" fn ps2_metadata() -> ModuleMetadata {
-    ModuleMetadata { name: FFIStr::from("ps2"), version_string: FFIStr::from("0.1.0") }
+    ModuleMetadata {
+        name: FFIStr::from("ps2"),
+        version_string: FFIStr::from("0.1.0"),
+    }
 }
 
 macro_rules! debug {
@@ -54,7 +66,7 @@ pub fn ps2_keyboard_interrupt() {
     if !KEYBOARD_EXISTS.load(Ordering::Relaxed) {
         return;
     }
-    
+
     let mut ps2_control = PS2_CONTROL;
 
     // SAFETY: PORT STUFF VALID
@@ -62,14 +74,10 @@ pub fn ps2_keyboard_interrupt() {
 
     let mut keyboard_guard = KEYBOARD.lock();
 
-    match keyboard_guard.add_byte(scancode) {
-        Ok(key) => match key.map(|ke| keyboard_guard.process_keyevent(ke)) {
-            Some(key) => match key {
-                Some(key) => debug!("KEYBOARD: {:?}", key),//TODO:
-                None => (),
-            },
-            None => (),
-        },
-        Err(_) => (),
+    if let Ok(key) = keyboard_guard.add_byte(scancode)
+        && let Some(key) = key.map(|ke| keyboard_guard.process_keyevent(ke))
+        && let Some(key) = key
+    {
+        debug!("KEYBOARD: {:?}", key)
     }
 }

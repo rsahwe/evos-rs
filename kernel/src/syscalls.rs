@@ -1,9 +1,27 @@
-use core::{arch::naked_asm, fmt::{Debug, Display}, mem::offset_of, ops::Index};
+use core::{
+    arch::naked_asm,
+    fmt::{Debug, Display},
+    mem::offset_of,
+    ops::Index,
+};
 
 use spin::{Mutex, MutexGuard};
-use x86_64::{instructions::interrupts::{disable, enable}, registers::{control::{Efer, EferFlags}, model_specific::{GsBase, KernelGsBase, LStar, SFMask, Star}, rflags::RFlags, segmentation::{Segment, GS}}, VirtAddr};
+use x86_64::{
+    VirtAddr,
+    instructions::interrupts::{disable, enable},
+    registers::{
+        control::{Efer, EferFlags},
+        model_specific::{GsBase, KernelGsBase, LStar, SFMask, Star},
+        rflags::RFlags,
+        segmentation::{GS, Segment},
+    },
+};
 
-use crate::{descriptors::{KCS, KDS, UCS, UDS}, mem::STACK_SIZE, debug};
+use crate::{
+    debug,
+    descriptors::{KCS, KDS, UCS, UDS},
+    mem::STACK_SIZE,
+};
 
 static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
@@ -16,7 +34,7 @@ impl GSVars {
     const fn new_uninit() -> Self {
         Self {
             user_stack_scratch: 0,
-            kernel_stack: 0
+            kernel_stack: 0,
         }
     }
 
@@ -30,7 +48,14 @@ static GS_VARS: Mutex<GSVars> = Mutex::new(GSVars::new_uninit());
 
 #[repr(C)]
 #[derive(Clone, Copy, Hash)]
-pub struct SyscallArgs(pub usize, pub usize, pub usize, pub usize, pub usize, pub usize);
+pub struct SyscallArgs(
+    pub usize,
+    pub usize,
+    pub usize,
+    pub usize,
+    pub usize,
+    pub usize,
+);
 
 impl Debug for SyscallArgs {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -131,17 +156,17 @@ pub extern "sysv64" fn syscall_entry() -> ! {
 }
 
 #[repr(C)]
-struct Combined(SyscallArgs, usize);//WHY?
+struct Combined(SyscallArgs, usize); //WHY?
 
 extern "sysv64" fn syscall_handler(combined: Combined) -> usize {
     let (args, number) = (combined.0, combined.1);
 
     //TODO:
-    enable();//TODO: ????
+    enable(); //TODO: ????
 
     debug!("Got syscall {} with args {}", number, args);
 
-    disable();//TODO: ????
+    disable(); //TODO: ????
 
     0
 }
@@ -151,15 +176,17 @@ pub fn init() {
 
     // SAFETY: STACK IS A UNIQUE REFERENCE
     #[allow(static_mut_refs)]
-    unsafe { gs_lock.init(&STACK) };
+    unsafe {
+        gs_lock.init(&STACK)
+    };
 
     Star::write(UCS, UDS, KCS, KDS).expect("Invalid GDT for syscalls!!!");
-    LStar::write(VirtAddr::new(syscall_entry as u64));
+    LStar::write(VirtAddr::new(syscall_entry as *const () as u64));
     SFMask::write(RFlags::INTERRUPT_FLAG | RFlags::DIRECTION_FLAG);
     // SAFETY: VALID
     unsafe { Efer::update(|flags| flags.set(EferFlags::SYSTEM_CALL_EXTENSIONS, true)) };
     // SAFETY: VALID
     unsafe { GS::set_reg(KDS) };
     KernelGsBase::write(VirtAddr::new(MutexGuard::leak(gs_lock) as *const _ as u64));
-    GsBase::write(VirtAddr::new(0));//USER CHANGES THIS
+    GsBase::write(VirtAddr::new(0)); //USER CHANGES THIS
 }

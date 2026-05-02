@@ -47,11 +47,11 @@ impl Log {
             let mut colors_guard = COLORS.lock();
 
             let old = *colors_guard;
-    
+
             *colors_guard = colors;
 
             FramePrinter::set_default_static_colors(colors.0, colors.1);
-    
+
             old
         })
     }

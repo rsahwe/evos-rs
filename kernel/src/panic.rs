@@ -1,4 +1,7 @@
-use core::{panic::PanicInfo, sync::atomic::{AtomicBool, Ordering}};
+use core::{
+    panic::PanicInfo,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use x86_64::instructions::{hlt, interrupts::disable};
 

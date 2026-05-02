@@ -1,9 +1,19 @@
-use core::{alloc::{GlobalAlloc, Layout}, fmt::Debug, marker::PhantomData, mem::{ManuallyDrop, MaybeUninit}, ops::{Deref, DerefMut}, ptr::NonNull};
+use core::{
+    alloc::{GlobalAlloc, Layout},
+    fmt::Debug,
+    marker::PhantomData,
+    mem::{ManuallyDrop, MaybeUninit},
+    ops::{Deref, DerefMut},
+    ptr::NonNull,
+};
 
 use bitvec::array::BitArray;
 use linked_list_allocator::Heap;
 use spin::Mutex;
-use x86_64::{structures::paging::{Page, PageSize, PageTableFlags, PhysFrame, Size4KiB}, VirtAddr};
+use x86_64::{
+    VirtAddr,
+    structures::paging::{Page, PageSize, PageTableFlags, PhysFrame, Size4KiB},
+};
 
 use crate::{map_range, palloc, pfree};
 
@@ -31,8 +41,8 @@ impl<T> VirtFrame<T> {
 
     #[allow(dead_code)]
     pub fn new_init<U>(init: U) -> Self
-    where 
-        for<'a> (U, &'a Self): Into<T>,    
+    where
+        for<'a> (U, &'a Self): Into<T>,
     {
         assert!(size_of::<T>() <= Size4KiB::SIZE as usize);
 
@@ -42,14 +52,15 @@ impl<T> VirtFrame<T> {
         };
 
         // SAFETY: POINTER IS VALID
-        unsafe { &mut *(&mut *frame as *mut T as *mut MaybeUninit<T>) }.write((init, &frame).into());
+        unsafe { &mut *(&mut *frame as *mut T as *mut MaybeUninit<T>) }
+            .write((init, &frame).into());
 
         frame
     }
 
     pub fn new_default() -> Self
-    where 
-        T: Default  
+    where
+        T: Default,
     {
         assert!(size_of::<T>() <= Size4KiB::SIZE as usize);
 
@@ -67,13 +78,19 @@ impl<T> VirtFrame<T> {
     fn into_inner(self) -> T {
         let this = ManuallyDrop::new(self);
         // SAFETY: FRAME IS MAPPED, ALLOCATED AND LARGE ENOUGH
-        unsafe { VirtAddr::new(this.phys.start_address().as_u64() + OFFSET).as_mut_ptr::<T>().read() }
+        unsafe {
+            VirtAddr::new(this.phys.start_address().as_u64() + OFFSET)
+                .as_mut_ptr::<T>()
+                .read()
+        }
     }
 
     #[allow(dead_code)]
     pub fn leak(self) -> &'static mut T {
         // SAFETY: FRAME IS MAPPED, ALLOCATED AND LARGE ENOUGH
-        let res = unsafe { &mut *VirtAddr::new(self.phys.start_address().as_u64() + OFFSET).as_mut_ptr::<T>() };
+        let res = unsafe {
+            &mut *VirtAddr::new(self.phys.start_address().as_u64() + OFFSET).as_mut_ptr::<T>()
+        };
 
         // Make sure inner does not get dropped and the page does not get deallocated
         let _drop = ManuallyDrop::new(self);
@@ -84,7 +101,7 @@ impl<T> VirtFrame<T> {
 
 impl<T> Default for VirtFrame<T>
 where
-    T: Default
+    T: Default,
 {
     fn default() -> Self {
         Self::new_default()
@@ -99,9 +116,7 @@ impl<T: Clone> Clone for VirtFrame<T> {
 
 impl<T: Debug> Debug for VirtFrame<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_tuple("VirtFrame")
-            .field(self.deref())
-            .finish()
+        f.debug_tuple("VirtFrame").field(self.deref()).finish()
     }
 }
 
@@ -109,7 +124,11 @@ impl<T> Drop for VirtFrame<T> {
     fn drop(&mut self) {
         // Incase T has drop glue
         // SAFETY: FRAME IS MAPPED, ALLOCATED AND LARGE ENOUGH
-        let _drop = unsafe { VirtAddr::new(self.phys.start_address().as_u64() + OFFSET).as_mut_ptr::<T>().read_volatile() };
+        let _drop = unsafe {
+            VirtAddr::new(self.phys.start_address().as_u64() + OFFSET)
+                .as_mut_ptr::<T>()
+                .read_volatile()
+        };
         // SAFETY: ALLOCATED BY THIS ALLOCATOR
         unsafe { pfree!(self.phys) };
     }
@@ -155,20 +174,20 @@ impl Slab {
                         return {
                             let el = inner.not_full_or_push(self.size);
                             el.alloc(self.size)
-                        }
+                        };
                     } else {
                         match inner.find_not_full(self.size) {
                             Some(el) => return el.alloc(self.size),
                             None => current_slab_el_slab = &mut inner.next,
                         }
                     }
-                },
+                }
                 none @ None => {
                     none.replace(Default::default());
                     let inner = none.as_mut().unwrap();
                     let el = inner.push();
-                    return el.alloc(self.size)
-                },
+                    return el.alloc(self.size);
+                }
             }
         }
     }
@@ -186,11 +205,11 @@ impl Slab {
                             let next = old.next;
                             *some = next;
                         }
-                        return true
+                        return true;
                     } else {
                         current_slab_el_slab = &mut some.as_mut().unwrap().next;
                     }
-                },
+                }
                 None => return false,
             }
         }
@@ -198,7 +217,11 @@ impl Slab {
 }
 
 struct SlabElementSlab {
-    elements: [MaybeUninit<SlabElement>; (Size4KiB::SIZE as usize - size_of::<Option<VirtFrame<SlabElementSlab>>>() - size_of::<usize>() * 2) / size_of::<MaybeUninit<SlabElement>>()],
+    elements: [MaybeUninit<SlabElement>;
+        (Size4KiB::SIZE as usize
+            - size_of::<Option<VirtFrame<SlabElementSlab>>>()
+            - size_of::<usize>() * 2)
+            / size_of::<MaybeUninit<SlabElement>>()],
     length: usize,
     _pad: usize,
     next: Option<VirtFrame<SlabElementSlab>>,
@@ -210,16 +233,21 @@ impl SlabElementSlab {
 
         let el = &mut self.elements[self.length];
         self.length += 1;
-        let el = el.write(Default::default());
 
-        el
+        (el.write(Default::default())) as _
     }
 
     fn not_full_or_push(&mut self, size: usize) -> &mut SlabElement {
         assert!(self.elements.len() > self.length);
 
         // SAFETY: ELEMENT IS VALID
-        match (&mut self.elements[..self.length]).iter_mut().enumerate().map(|(index, el)| unsafe { (index, el.assume_init_ref()) }).find(|(_, el)| !el.full(size)).map(|(index, _)| index) {
+        match self.elements[..self.length]
+            .iter_mut()
+            .enumerate()
+            .map(|(index, el)| unsafe { (index, el.assume_init_ref()) })
+            .find(|(_, el)| !el.full(size))
+            .map(|(index, _)| index)
+        {
             // SAFETY: INDEX IS VALID
             Some(index) => unsafe { self.elements[index].assume_init_mut() },
             None => self.push(),
@@ -228,15 +256,33 @@ impl SlabElementSlab {
 
     fn find_not_full(&mut self, size: usize) -> Option<&mut SlabElement> {
         // SAFETY: ELEMENT IS VALID
-        (&mut self.elements[..self.length]).iter_mut().map(|el| unsafe { el.assume_init_mut() }).find(|el| !el.full(size))
+        self.elements[..self.length]
+            .iter_mut()
+            .map(|el| unsafe { el.assume_init_mut() })
+            .find(|el| !el.full(size))
     }
 
     fn try_deallocate(&mut self, ptr: *mut u8, size: usize) -> bool {
         // SAFETY: ELEMENT IS VALID
-        if (&mut self.elements[..self.length]).iter_mut().map(|el| unsafe { el.assume_init_mut() }).find_map(|el| if el.try_deallocate(ptr, size) { Some(()) } else { None }).is_some() {
+        if self.elements[..self.length]
+            .iter_mut()
+            .map(|el| unsafe { el.assume_init_mut() })
+            .find_map(|el| {
+                if el.try_deallocate(ptr, size) {
+                    Some(())
+                } else {
+                    None
+                }
+            })
+            .is_some()
+        {
             // SAFETY: ELEMENT IS VALID
-            if (&mut self.elements[..self.length]).iter().map(|el| unsafe { el.assume_init_ref() }).all(|el| el.empty(size)) {
-                for el in (&mut self.elements[..self.length]).iter_mut() {
+            if self.elements[..self.length]
+                .iter()
+                .map(|el| unsafe { el.assume_init_ref() })
+                .all(|el| el.empty(size))
+            {
+                for el in self.elements[..self.length].iter_mut() {
                     // SAFETY: ELEMENT IS VALID
                     unsafe { el.assume_init_drop() };
                 }
@@ -252,7 +298,11 @@ impl SlabElementSlab {
 impl Default for SlabElementSlab {
     fn default() -> Self {
         Self {
-            elements: [const { MaybeUninit::uninit() }; (Size4KiB::SIZE as usize - size_of::<Option<VirtFrame<SlabElementSlab>>>() - size_of::<usize>() * 2) / size_of::<MaybeUninit<SlabElement>>()],
+            elements: [const { MaybeUninit::uninit() };
+                (Size4KiB::SIZE as usize
+                    - size_of::<Option<VirtFrame<SlabElementSlab>>>()
+                    - size_of::<usize>() * 2)
+                    / size_of::<MaybeUninit<SlabElement>>()],
             length: Default::default(),
             _pad: Default::default(),
             next: Default::default(),
@@ -267,7 +317,10 @@ struct SlabElement {
 
 impl Default for SlabElement {
     fn default() -> Self {
-        Self { data: VirtFrame::new([0; Size4KiB::SIZE as usize]), bitmap: Default::default() }
+        Self {
+            data: VirtFrame::new([0; Size4KiB::SIZE as usize]),
+            bitmap: Default::default(),
+        }
     }
 }
 
@@ -278,19 +331,19 @@ impl SlabElement {
     }
 
     fn full(&self, size: usize) -> bool {
-        (&self.bitmap[..(self.data.len() / size)]).all()
+        self.bitmap[..(self.data.len() / size)].all()
     }
 
     fn empty(&self, size: usize) -> bool {
-        (&self.bitmap[..(self.data.len() / size)]).not_any()
+        self.bitmap[..(self.data.len() / size)].not_any()
     }
 
     fn alloc(&mut self, size: usize) -> *mut u8 {
-        match (&self.bitmap[..(self.data.len() / size)]).first_zero() {
+        match self.bitmap[..(self.data.len() / size)].first_zero() {
             Some(index) => {
                 self.bitmap.set(index, true);
                 &raw mut self.data[(index * size)..((index + 1) * size)] as *mut u8
-            },
+            }
             None => panic!("SlabElement was empty when alloc was called!!!"),
         }
     }
@@ -300,9 +353,7 @@ impl SlabElement {
             false
         } else {
             let offset = isize::wrapping_sub(ptr as isize, self.data.as_ptr() as isize);
-            if offset < 0 {
-                false
-            } else if offset as usize >= self.data.len() {
+            if offset < 0 || offset as usize >= self.data.len() {
                 false
             } else {
                 let index = offset as usize / size;
@@ -338,7 +389,7 @@ impl KAlloc {
                 Slab::new(2048),
                 Slab::new(4096),
             ],
-            big: unsafe { Heap::new(new_bottom, HEAP_BLOCK_SIZE) }
+            big: unsafe { Heap::new(new_bottom, HEAP_BLOCK_SIZE) },
         }
     }
 
@@ -366,9 +417,15 @@ impl KAlloc {
 
         assert!(!new_top.is_null(), "Kernel Big Heap OOM!!!");
 
-        let range = Page::<Size4KiB>::range(Page::from_start_address(VirtAddr::from_ptr(new_bottom)).unwrap(), Page::from_start_address(VirtAddr::from_ptr(new_top)).unwrap());
+        let range = Page::<Size4KiB>::range(
+            Page::from_start_address(VirtAddr::from_ptr(new_bottom)).unwrap(),
+            Page::from_start_address(VirtAddr::from_ptr(new_top)).unwrap(),
+        );
 
-        map_range!(range, PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::GLOBAL);
+        map_range!(
+            range,
+            PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::GLOBAL
+        );
     }
 }
 
@@ -378,7 +435,9 @@ pub struct GAlloc {
 
 impl GAlloc {
     pub const fn new() -> Self {
-        Self { inner: Mutex::new(None) }
+        Self {
+            inner: Mutex::new(None),
+        }
     }
 
     pub fn init(&self) {
@@ -407,7 +466,11 @@ unsafe impl GlobalAlloc for GAlloc {
 
         let pow2 = layout.size().next_power_of_two();
         if pow2 <= 4096 {
-            assert!(alloc.slabs[pow2.ilog2().saturating_sub(32usize.ilog2()) as usize].try_deallocate(ptr), "Double free for GAlloc!!!");
+            assert!(
+                alloc.slabs[pow2.ilog2().saturating_sub(32usize.ilog2()) as usize]
+                    .try_deallocate(ptr),
+                "Double free for GAlloc!!!"
+            );
         } else {
             alloc.deallocate_big(ptr, layout)
         }

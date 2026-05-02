@@ -10,13 +10,18 @@ pub struct FFIStr<'a> {
 
 impl<'a> From<&'a str> for FFIStr<'a> {
     fn from(value: &'a str) -> Self {
-        FFIStr { ptr: value.as_ptr(), len: value.len(), phantom: PhantomData }
+        FFIStr {
+            ptr: value.as_ptr(),
+            len: value.len(),
+            phantom: PhantomData,
+        }
     }
 }
 
-impl<'a> Into<&'a str> for FFIStr<'a> {
-    fn into(self) -> &'a str {
+impl<'a> From<FFIStr<'a>> for &'a str {
+    fn from(val: FFIStr<'a>) -> Self {
         // SAFETY: SHOULD BE SAFE
-        str::from_utf8(unsafe { slice::from_raw_parts(self.ptr, self.len) }).unwrap_or("malformed_ffi_str")
+        str::from_utf8(unsafe { slice::from_raw_parts(val.ptr, val.len) })
+            .unwrap_or("malformed_ffi_str")
     }
 }

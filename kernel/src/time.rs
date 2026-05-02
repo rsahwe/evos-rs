@@ -1,4 +1,7 @@
-use core::{hint::spin_loop, sync::atomic::{AtomicU16, AtomicU64, Ordering}};
+use core::{
+    hint::spin_loop,
+    sync::atomic::{AtomicU16, AtomicU64, Ordering},
+};
 
 use crate::interrupts::PicEnd;
 
@@ -41,7 +44,6 @@ impl Time {
 
     pub(crate) fn set_ps_tick_step(step: u64) {
         PS_TICK_STEP.store(step, Ordering::Relaxed);
-
     }
 
     pub(crate) fn tick_step(_guard: PicEnd) {

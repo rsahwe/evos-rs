@@ -4,7 +4,11 @@ use bootloader_api::{config::Mapping, info::MemoryRegions};
 use phys::PageFrameAllocator;
 use spin::Mutex;
 use virt::GAlloc;
-use x86_64::{registers::control::Cr3, structures::paging::{OffsetPageTable, Page, PageSize, PageTable, PageTableFlags, Size4KiB}, VirtAddr};
+use x86_64::{
+    VirtAddr,
+    registers::control::Cr3,
+    structures::paging::{OffsetPageTable, Page, PageSize, PageTable, PageTableFlags, Size4KiB},
+};
 
 use crate::debug;
 
@@ -30,7 +34,13 @@ pub static VIRT_MAPPER: Mutex<Option<OffsetPageTable<'static>>> = Mutex::new(Non
 #[macro_export]
 macro_rules! palloc {
     () => {
-        ::x86_64::structures::paging::FrameAllocator::allocate_frame($crate::mem::PHYS_ALLOCATOR.lock().as_mut().expect("Allocator missing!!!")).expect("Physical OOM!!!")
+        ::x86_64::structures::paging::FrameAllocator::allocate_frame(
+            $crate::mem::PHYS_ALLOCATOR
+                .lock()
+                .as_mut()
+                .expect("Allocator missing!!!"),
+        )
+        .expect("Physical OOM!!!")
     };
 }
 
@@ -47,7 +57,8 @@ macro_rules! palloc_loop {
             // SAFETY: STILL LOCKED
             let phys = unsafe { &mut *phys_raw };
 
-            let frame = ::x86_64::structures::paging::FrameAllocator::allocate_frame(phys).expect("Physical OOM!!!");
+            let frame = ::x86_64::structures::paging::FrameAllocator::allocate_frame(phys)
+                .expect("Physical OOM!!!");
 
             closure(phys, frame, el);
         }
@@ -57,7 +68,13 @@ macro_rules! palloc_loop {
 #[macro_export]
 macro_rules! pfree {
     ($frame:expr) => {
-        ::x86_64::structures::paging::FrameDeallocator::deallocate_frame($crate::mem::PHYS_ALLOCATOR.lock().as_mut().expect("Allocator missing!!!"), $frame)
+        ::x86_64::structures::paging::FrameDeallocator::deallocate_frame(
+            $crate::mem::PHYS_ALLOCATOR
+                .lock()
+                .as_mut()
+                .expect("Allocator missing!!!"),
+            $frame,
+        )
     };
 }
 
@@ -66,12 +83,20 @@ macro_rules! map {
     ($page:expr, $frame:expr, $flags:expr) => {
         unsafe {
             ::x86_64::structures::paging::mapper::Mapper::map_to(
-                $crate::mem::VIRT_MAPPER.lock().as_mut().expect("Mapper missing!!!"),
+                $crate::mem::VIRT_MAPPER
+                    .lock()
+                    .as_mut()
+                    .expect("Mapper missing!!!"),
                 $page,
                 $frame,
                 $flags,
-                $crate::mem::PHYS_ALLOCATOR.lock().as_mut().expect("Allocator missing!!!")
-            ).expect("Mapping failed!!!").flush()
+                $crate::mem::PHYS_ALLOCATOR
+                    .lock()
+                    .as_mut()
+                    .expect("Allocator missing!!!"),
+            )
+            .expect("Mapping failed!!!")
+            .flush()
         }
     };
 }
@@ -89,20 +114,31 @@ macro_rules! map_range {
             // SAFETY: STILL LOCKED
             let map = unsafe { &mut *map_raw };
 
-            unsafe { ::x86_64::structures::paging::mapper::Mapper::map_to(map, page, frame, flags, palloc).expect("Mapping failed!!!").flush() }
+            unsafe {
+                ::x86_64::structures::paging::mapper::Mapper::map_to(
+                    map, page, frame, flags, palloc,
+                )
+                .expect("Mapping failed!!!")
+                .flush()
+            }
         })
     };
 }
 
 #[macro_export]
 macro_rules! unmap {
-    ($page:expr) => {
-        {
-            let (frame, flush) = ::x86_64::structures::paging::Mapper::unmap($crate::mem::VIRT_MAPPER.lock().as_mut().expect("Mapper missing!!!"), $page).expect("Unmapping failed!!!");
-            flush.flush();
-            frame
-        }
-    };
+    ($page:expr) => {{
+        let (frame, flush) = ::x86_64::structures::paging::Mapper::unmap(
+            $crate::mem::VIRT_MAPPER
+                .lock()
+                .as_mut()
+                .expect("Mapper missing!!!"),
+            $page,
+        )
+        .expect("Unmapping failed!!!");
+        flush.flush();
+        frame
+    }};
 }
 
 #[macro_export]
@@ -112,11 +148,15 @@ macro_rules! unmap_clean {
             let local_page = $page;
             let mut mapper_guard = $crate::mem::VIRT_MAPPER.lock();
             let mapper = mapper_guard.as_mut().expect("Mapper missing!!!");
-            let (frame, flush) = ::x86_64::structures::paging::Mapper::unmap(mapper, local_page).expect("Unmapping failed!!!");
+            let (frame, flush) = ::x86_64::structures::paging::Mapper::unmap(mapper, local_page)
+                .expect("Unmapping failed!!!");
             ::x86_64::structures::paging::mapper::CleanUp::clean_up_addr_range(
                 mapper,
                 Page::range_inclusive($page, $page),
-                $crate::mem::PHYS_ALLOCATOR.lock().as_mut().expect("Allocator missing!!!")
+                $crate::mem::PHYS_ALLOCATOR
+                    .lock()
+                    .as_mut()
+                    .expect("Allocator missing!!!"),
             );
             flush.flush();
             frame
@@ -139,11 +179,14 @@ pub unsafe fn init(memory_regions: &mut MemoryRegions) {
     *PHYS_ALLOCATOR.lock() = Some(unsafe { PageFrameAllocator::new(memory_regions) });
 
     // SAFETY: l4table IS ONLY CALLED HERE AND IS VALID (OFFSET IS ALSO VALID)
-    *VIRT_MAPPER.lock() = Some(unsafe { OffsetPageTable::new(l4table(), VirtAddr::from_ptr(OFFSET as *const ())) });
+    *VIRT_MAPPER.lock() =
+        Some(unsafe { OffsetPageTable::new(l4table(), VirtAddr::from_ptr(OFFSET as *const ())) });
 
     let heap_range = Page::<Size4KiB>::range_inclusive(
         Page::containing_address(VirtAddr::from_ptr(HEAP_VIRT_BASE as *const ())),
-        Page::containing_address(VirtAddr::from_ptr((0u64.wrapping_sub(Size4KiB::SIZE)) as *const ()))
+        Page::containing_address(VirtAddr::from_ptr(
+            (0u64.wrapping_sub(Size4KiB::SIZE)) as *const (),
+        )),
     );
 
     {
@@ -155,7 +198,15 @@ pub unsafe fn init(memory_regions: &mut MemoryRegions) {
 
         //TODO: BETTER CHECK
         // Reserved for kernel heap
-        assert!(mapper.level_4_table().iter().skip(start4.into()).take(usize::from(end4) - usize::from(start4)).all(|entry| entry.flags().intersects(PageTableFlags::PRESENT)), "Level 4 entry present in Kernel Heap!!!");
+        assert!(
+            mapper
+                .level_4_table()
+                .iter()
+                .skip(start4.into())
+                .take(usize::from(end4) - usize::from(start4))
+                .all(|entry| entry.flags().intersects(PageTableFlags::PRESENT)),
+            "Level 4 entry present in Kernel Heap!!!"
+        );
 
         //TODO: MAKE CONST
         // Reserved for user
@@ -168,8 +219,17 @@ pub unsafe fn init(memory_regions: &mut MemoryRegions) {
 
     let size = PHYS_ALLOCATOR.lock().as_ref().unwrap().size();
     let free = PHYS_ALLOCATOR.lock().as_ref().unwrap().free();
-    debug!("Usable memory 0x{:016x} physical bytes (0x{:016x} used)", size, size - free);
-    assert!(free > MIN_PHYSICAL_FREE, "Not enough physical memory 0x{:x} free < 0x{:x} required!!!", free, MIN_PHYSICAL_FREE);
+    debug!(
+        "Usable memory 0x{:016x} physical bytes (0x{:016x} used)",
+        size,
+        size - free
+    );
+    assert!(
+        free > MIN_PHYSICAL_FREE,
+        "Not enough physical memory 0x{:x} free < 0x{:x} required!!!",
+        free,
+        MIN_PHYSICAL_FREE
+    );
 }
 
 pub const CONFIG: bootloader_api::BootloaderConfig = {
@@ -186,4 +246,3 @@ unsafe fn l4table() -> &'static mut PageTable {
     // SAFETY: PAGE TABLE IS VALID (OTHERWISE A PAGE FAULT WOULD HAVE TRIPLE FAULTED ALREADY)
     unsafe { &mut *(Cr3::read().0.start_address().as_u64().add(OFFSET) as *mut PageTable) }
 }
-

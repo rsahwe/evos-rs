@@ -1,2 +1,2 @@
-pub mod format;
 pub mod font;
+pub mod format;

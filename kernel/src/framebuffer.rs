@@ -1,10 +1,16 @@
-use core::{ascii::Char, fmt::{Arguments, Write}};
+use core::{
+    ascii::Char,
+    fmt::{Arguments, Write},
+};
 
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
 use spin::Mutex;
 use x86_64::instructions::interrupts::without_interrupts;
 
-use crate::{text::{font::Font, format::Color}, time::Time};
+use crate::{
+    text::{font::Font, format::Color},
+    time::Time,
+};
 
 type FramePrinterFont = crate::config::framebuffer::Font;
 
@@ -35,7 +41,12 @@ impl FramePrinter {
             bg_color: Color(0, 0, 0),
         });
 
-        framebuffer_guard.as_mut().unwrap().framebuffer.buffer_mut().fill(0);
+        framebuffer_guard
+            .as_mut()
+            .unwrap()
+            .framebuffer
+            .buffer_mut()
+            .fill(0);
 
         drop(framebuffer_guard);
     }
@@ -57,15 +68,11 @@ impl FramePrinter {
 
     pub fn set_default_static_colors(fg_color: Color, bg_color: Color) {
         without_interrupts(|| {
-            match FRAMEBUFFER.try_lock() {
-                Some(mut guard) => match *guard {
-                    Some(ref mut fb) => {
-                        fb.fg_color = fg_color;
-                        fb.bg_color = bg_color;
-                    },
-                    None => (),
-                },
-                None => (),
+            if let Some(mut guard) = FRAMEBUFFER.try_lock()
+                && let Some(ref mut fb) = *guard
+            {
+                fb.fg_color = fg_color;
+                fb.bg_color = bg_color;
             }
         })
     }
@@ -79,7 +86,9 @@ impl FramePrinter {
 
 impl FramePrinter {
     fn set_color_at(&mut self, x: usize, y: usize, col: Color) -> core::fmt::Result {
-        let base_pos = ((self.info.height - FramePrinterFont::height() + y) * self.info.stride + (self.line_pos * FramePrinterFont::width() + x)) * self.info.bytes_per_pixel;
+        let base_pos = ((self.info.height - FramePrinterFont::height() + y) * self.info.stride
+            + (self.line_pos * FramePrinterFont::width() + x))
+            * self.info.bytes_per_pixel;
         let buffer = self.framebuffer.buffer_mut();
         match self.info.pixel_format {
             bootloader_api::info::PixelFormat::Rgb => {
@@ -87,23 +96,28 @@ impl FramePrinter {
                 buffer[base_pos + 1] = col.1;
                 buffer[base_pos + 2] = col.2;
                 Ok(())
-            },
+            }
             bootloader_api::info::PixelFormat::Bgr => {
                 buffer[base_pos + 0] = col.2;
                 buffer[base_pos + 1] = col.1;
                 buffer[base_pos + 2] = col.0;
                 Ok(())
-            },
+            }
             bootloader_api::info::PixelFormat::U8 => {
-                buffer[base_pos] = ((col.0 as u16 * 21 + col.1 as u16 * 72 + col.2 as u16 * 7) / 100) as u8;
+                buffer[base_pos] =
+                    ((col.0 as u16 * 21 + col.1 as u16 * 72 + col.2 as u16 * 7) / 100) as u8;
                 Ok(())
-            },
-            bootloader_api::info::PixelFormat::Unknown { red_position, green_position, blue_position } => {
-                buffer[base_pos + red_position as usize]    = col.0;
-                buffer[base_pos + green_position as usize]  = col.1;
-                buffer[base_pos + blue_position as usize]   = col.2;
+            }
+            bootloader_api::info::PixelFormat::Unknown {
+                red_position,
+                green_position,
+                blue_position,
+            } => {
+                buffer[base_pos + red_position as usize] = col.0;
+                buffer[base_pos + green_position as usize] = col.1;
+                buffer[base_pos + blue_position as usize] = col.2;
                 Ok(())
-            },
+            }
             _ => Err(core::fmt::Error),
         }
     }
@@ -114,23 +128,38 @@ impl Write for FramePrinter {
         if self.newline {
             self.newline = false;
             let time = Time::boot_time_ns();
-            self.write_fmt(format_args!("[{:03}.{:03}] ", (time / 1000000000) % 1000, (time / 1000000) % 1000))?;
+            self.write_fmt(format_args!(
+                "[{:03}.{:03}] ",
+                (time / 1000000000) % 1000,
+                (time / 1000000) % 1000
+            ))?;
         }
 
         let c = c.as_ascii().unwrap_or(Char::EndOfTransmission /* SQUARE */);
         match c {
             Char::LineFeed => {
-                self.framebuffer.buffer_mut().copy_within(self.info.stride * self.info.bytes_per_pixel * FramePrinterFont::height().., 0);
-                self.framebuffer.buffer_mut().split_at_mut((self.info.height - FramePrinterFont::height()) * self.info.stride * self.info.bytes_per_pixel).1.fill(0);
+                self.framebuffer.buffer_mut().copy_within(
+                    self.info.stride * self.info.bytes_per_pixel * FramePrinterFont::height()..,
+                    0,
+                );
+                self.framebuffer
+                    .buffer_mut()
+                    .split_at_mut(
+                        (self.info.height - FramePrinterFont::height())
+                            * self.info.stride
+                            * self.info.bytes_per_pixel,
+                    )
+                    .1
+                    .fill(0);
                 self.line_pos = 0;
                 self.newline = true;
                 self.line_count += 1;
                 Ok(())
-            },
+            }
             Char::CarriageReturn => {
                 self.line_pos = 10;
                 Ok(())
-            },
+            }
             //TODO: ANSI OR SMTH FOR COLORS
             _ => {
                 let c = FramePrinterFont::get_char(c);
@@ -139,8 +168,13 @@ impl Write for FramePrinter {
                 }
                 for y in 0..FramePrinterFont::height() {
                     for x in 0..FramePrinterFont::width() {
-                        let select = c[y * FramePrinterFont::width() + (FramePrinterFont::width() - x - 1)];
-                        self.set_color_at(x, y, if select { self.fg_color } else { self.bg_color })?;
+                        let select =
+                            c[y * FramePrinterFont::width() + (FramePrinterFont::width() - x - 1)];
+                        self.set_color_at(
+                            x,
+                            y,
+                            if select { self.fg_color } else { self.bg_color },
+                        )?;
                     }
                 }
                 self.line_pos += 1;
@@ -148,11 +182,11 @@ impl Write for FramePrinter {
             }
         }
     }
-    
+
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         for c in s.chars() {
             self.write_char(c)?;
-        };
+        }
 
         Ok(())
     }

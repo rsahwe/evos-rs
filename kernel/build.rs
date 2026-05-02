@@ -1,6 +1,13 @@
 #![feature(exit_status_error)]
 
-use std::{borrow::Cow, env, error::Error, io::{BufWriter, Write}, path::{Path, PathBuf}, process::{Command, Stdio}};
+use std::{
+    borrow::Cow,
+    env,
+    error::Error,
+    io::{BufWriter, Write},
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+};
 
 use config::{Config, File};
 use serde::Deserialize;
@@ -20,12 +27,16 @@ struct FrameBufferConfig {
 
 impl FrameBufferConfig {
     fn write_to_file(self, file: &mut BufWriter<std::fs::File>) -> Result<(), Box<dyn Error>> {
-        writeln!(file, "{}", match self.font.as_str() {
-            "basic8x8" => "pub type Font = crate::text::font::Basic8x8;",
-            "ter16x32" => "pub type Font = crate::text::font::Ter16x32;",
-            "sun8x16" => "pub type Font = crate::text::font::Sun8x16;",
-            font => Err(format!("config::framebuffer::font: Invalid font {}", font))?
-        })?;
+        writeln!(
+            file,
+            "{}",
+            match self.font.as_str() {
+                "basic8x8" => "pub type Font = crate::text::font::Basic8x8;",
+                "ter16x32" => "pub type Font = crate::text::font::Ter16x32;",
+                "sun8x16" => "pub type Font = crate::text::font::Sun8x16;",
+                font => Err(format!("config::framebuffer::font: Invalid font {}", font))?,
+            }
+        )?;
 
         Ok(())
     }
@@ -58,12 +69,21 @@ struct KeyboardConfig {
 
 impl KeyboardConfig {
     fn write_to_file(self, file: &mut BufWriter<std::fs::File>) -> Result<(), Box<dyn Error>> {
-        writeln!(file, "{}", match self.layout.as_str() {
-            "en" => "pub type Layout = pc_keyboard::layouts::Us104Key;\npub const fn new_layout() -> pc_keyboard::layouts::Us104Key { pc_keyboard::layouts::Us104Key }",
-            "de" => "pub type Layout = pc_keyboard::layouts::De105Key;\npub const fn new_layout() -> pc_keyboard::layouts::De105Key { pc_keyboard::layouts::De105Key }",
-            layout => Err(format!("config::keyboard::layout: Invalid layout {}", layout))?
-        })?;
-        
+        writeln!(
+            file,
+            "{}",
+            match self.layout.as_str() {
+                "en" =>
+                    "pub type Layout = pc_keyboard::layouts::Us104Key;\npub const fn new_layout() -> pc_keyboard::layouts::Us104Key { pc_keyboard::layouts::Us104Key }",
+                "de" =>
+                    "pub type Layout = pc_keyboard::layouts::De105Key;\npub const fn new_layout() -> pc_keyboard::layouts::De105Key { pc_keyboard::layouts::De105Key }",
+                layout => Err(format!(
+                    "config::keyboard::layout: Invalid layout {}",
+                    layout
+                ))?,
+            }
+        )?;
+
         Ok(())
     }
 }
@@ -86,17 +106,31 @@ impl KernelConfig {
         conf_dep!(self, file, modules);
         conf_dep!(self, file, keyboard);
 
-        writeln!(file, "#[atomic_enum::atomic_enum]\n#[derive(PartialOrd, Ord, PartialEq, Eq)]\npub enum LogLevel {{\n    Critical,Error,Warn,Info,Debug\n}}")?;
-        writeln!(file, "pub static LOG_LEVEL: AtomicLogLevel = AtomicLogLevel::new({});", match self.log_level.as_str() {
-            "debug" => "LogLevel::Debug",
-            "info" => "LogLevel::Info",
-            "warn" => "LogLevel::Warn",
-            "error" => "LogLevel::Error",
-            "critical" => "LogLevel::Critical",
-            _ => Err(format!("config::LOG_LEVEL: Invalid level {}", self.log_level))?
-        })?;
+        writeln!(
+            file,
+            "#[atomic_enum::atomic_enum]\n#[derive(PartialOrd, Ord, PartialEq, Eq)]\npub enum LogLevel {{\n    Critical,Error,Warn,Info,Debug\n}}"
+        )?;
+        writeln!(
+            file,
+            "pub static LOG_LEVEL: AtomicLogLevel = AtomicLogLevel::new({});",
+            match self.log_level.as_str() {
+                "debug" => "LogLevel::Debug",
+                "info" => "LogLevel::Info",
+                "warn" => "LogLevel::Warn",
+                "error" => "LogLevel::Error",
+                "critical" => "LogLevel::Critical",
+                _ => Err(format!(
+                    "config::LOG_LEVEL: Invalid level {}",
+                    self.log_level
+                ))?,
+            }
+        )?;
         writeln!(file, "pub const SERIAL_LOG: bool = {};", self.serial_log)?;
-        writeln!(file, "pub const KERNEL_ID: &'static str = \"{}\";", std::env::var("KERNEL_ID").unwrap_or("DEFAULT".to_string()))?;
+        writeln!(
+            file,
+            "pub const KERNEL_ID: &str = \"{}\";",
+            std::env::var("KERNEL_ID").unwrap_or("DEFAULT".to_string())
+        )?;
 
         Ok(())
     }
@@ -117,15 +151,15 @@ fn main() {
         .try_deserialize::<KernelConfig>()
         .expect("Could not deserialize config!");
 
-    let out_path = PathBuf::from(env::var("OUT_DIR")
-        .unwrap());
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    kc
-        .write_to_file(out_path.join("config.rs"))
+    kc.write_to_file(out_path.join("config.rs"))
         .expect("Could not write config!");
 
     let mut git_branch = Command::new("git");
-    let git_branch = git_branch.args(["rev-parse", "--abbrev-ref", "HEAD"]).stdout(Stdio::piped());
+    let git_branch = git_branch
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .stdout(Stdio::piped());
 
     let git_branch = git_branch.output().unwrap();
     let git_branch = git_branch.exit_ok();
@@ -135,5 +169,8 @@ fn main() {
     };
 
     println!("cargo::rustc-env=EVOS_BUILD_ID={}", git_branch);
-    println!("cargo::rustc-env=EVOS_BUILD_PROFILE={}", std::env::var("PROFILE").unwrap());
+    println!(
+        "cargo::rustc-env=EVOS_BUILD_PROFILE={}",
+        std::env::var("PROFILE").unwrap()
+    );
 }

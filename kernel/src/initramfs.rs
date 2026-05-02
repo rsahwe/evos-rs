@@ -12,20 +12,25 @@ static INITRAMFS: RwLock<InitRamFs> = RwLock::new(InitRamFs { raw: None });
 
 pub(crate) fn init(ramdisk_location: u64, ramdisk_len: u64) {
     // SAFETY: GUARANTEED BY BOOTLOADER
-    let file_slice = unsafe { core::slice::from_raw_parts(ramdisk_location as *const u8, ramdisk_len as usize) };
+    let file_slice =
+        unsafe { core::slice::from_raw_parts(ramdisk_location as *const u8, ramdisk_len as usize) };
 
     INITRAMFS.write().raw = Some(file_slice);
 
     debug!("InitRamFs contents:");
 
     for (file_name, file_content) in InitRamFs::iter() {
-        debug!("    File `{}` with size 0x{:016x} bytes", file_name, file_content.len());
+        debug!(
+            "    File `{}` with size 0x{:016x} bytes",
+            file_name,
+            file_content.len()
+        );
     }
 }
 
 impl InitRamFs {
     pub fn open_file(name: &str) -> Option<&'static [u8]> {
-        Self::iter().find_map(|(file, content)| (file == name).then(|| content))
+        Self::iter().find_map(|(file, content)| (file == name).then_some(content))
     }
 
     pub fn open_text_file(name: &str) -> Option<Result<&'static str, Utf8Error>> {
@@ -37,7 +42,11 @@ impl InitRamFs {
         file_count.copy_from_slice(&INITRAMFS.read().raw.unwrap()[0..size_of::<usize>()]);
         let file_count = usize::from_le_bytes(file_count);
 
-        InitRamFileIterator { raw: INITRAMFS.read().raw.unwrap(), file_count, current_file: 0 }
+        InitRamFileIterator {
+            raw: INITRAMFS.read().raw.unwrap(),
+            file_count,
+            current_file: 0,
+        }
     }
 }
 
@@ -55,7 +64,8 @@ impl Iterator for InitRamFileIterator {
             None
         } else {
             let table_slice = &self.raw[8..];
-            let current_slice = &table_slice[3 * 8 * self.current_file..3 * 8 * (self.current_file + 1)];
+            let current_slice =
+                &table_slice[3 * 8 * self.current_file..3 * 8 * (self.current_file + 1)];
 
             let mut buffer = [0; 8];
             buffer.copy_from_slice(&current_slice[0..8]);
@@ -68,12 +78,19 @@ impl Iterator for InitRamFileIterator {
 
             self.current_file += 1;
 
-            Some((str::from_utf8(&self.raw[name_offset..name_offset + name_len]).expect("InitRamFs file name invalid!!!"), &self.raw[file_offset..file_offset + file_len]))
+            Some((
+                str::from_utf8(&self.raw[name_offset..name_offset + name_len])
+                    .expect("InitRamFs file name invalid!!!"),
+                &self.raw[file_offset..file_offset + file_len],
+            ))
         }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.file_count - self.current_file, Some(self.file_count - self.current_file))
+        (
+            self.file_count - self.current_file,
+            Some(self.file_count - self.current_file),
+        )
     }
 }
 
