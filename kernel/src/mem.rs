@@ -80,16 +80,20 @@ macro_rules! pfree {
 
 #[macro_export]
 macro_rules! map {
-    ($page:expr, $frame:expr, $flags:expr) => {
+    ($page:expr, $frame:expr, $flags:expr) => {{
+        let page = $page;
+        let frame = $frame;
+        let flags = $flags;
+
         unsafe {
             ::x86_64::structures::paging::mapper::Mapper::map_to(
                 $crate::mem::VIRT_MAPPER
                     .lock()
                     .as_mut()
                     .expect("Mapper missing!!!"),
-                $page,
-                $frame,
-                $flags,
+                page,
+                frame,
+                flags,
                 $crate::mem::PHYS_ALLOCATOR
                     .lock()
                     .as_mut()
@@ -98,7 +102,7 @@ macro_rules! map {
             .expect("Mapping failed!!!")
             .flush()
         }
-    };
+    }};
 }
 
 #[macro_export]

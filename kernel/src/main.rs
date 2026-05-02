@@ -2,7 +2,7 @@
 #![no_main]
 
 use bootloader_api::BootInfo;
-use evkrnl::{init, BOOT_CONFIG, syscall_test};
+use evkrnl::{BOOT_CONFIG, init, syscall_test};
 
 bootloader_api::entry_point!(kernel_main, config = &BOOT_CONFIG);
 
